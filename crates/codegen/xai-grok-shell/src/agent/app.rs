@@ -553,7 +553,7 @@ async fn run_headless_inner(
             // Print to stderr (not logger) so user sees it
             eprintln!();
             eprintln!(
-                "Open Grok Build: {} (press Enter to open in browser)",
+                "Open Your Own AI Build: {} (press Enter to open in browser)",
                 grok_code_url
             );
             eprintln!();

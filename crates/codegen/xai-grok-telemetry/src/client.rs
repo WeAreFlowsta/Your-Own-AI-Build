@@ -9,7 +9,6 @@
 use std::sync::{Arc, Mutex, OnceLock};
 
 use chrono::{Local, SecondsFormat};
-use serde_json::json;
 use xai_mixpanel::Mixpanel;
 
 use crate::config::{TelemetryConfig, TelemetryMode, deployment_id_from_key};
@@ -168,133 +167,19 @@ impl UserContext {
     }
 }
 
-/// Core telemetry emitter. Routes to product events + Mixpanel.
-pub async fn track(event_name: &str, request_id: &str, ctx: &UserContext, mut metadata: Metadata) {
-    let lock = TELEMETRY_CLIENT.get_or_init(|| Mutex::new(None));
-    let client = {
-        let guard = lock.lock().unwrap_or_else(|err| err.into_inner());
-        match guard.clone() {
-            Some(c) => c,
-            None => return,
-        }
-    };
-
-    let agent_id = crate::id::agent_id();
-    let user_id = client.user_id.as_deref().unwrap_or(&agent_id);
-    metadata.insert("agent_id".into(), json!(agent_id));
-    if let Some(ref team_id) = client.team_id {
-        metadata.insert("team_id".into(), json!(team_id));
-    }
-    if let Some(ref deployment_id) = client.deployment_id {
-        metadata.insert("deployment_id".into(), json!(deployment_id));
-    }
-    metadata.insert("shell_version".into(), json!(client.shell_version));
-    if let Some(ref client_type) = client.client_type {
-        metadata.insert("client_type".into(), json!(client_type));
-    }
-    if let Some(ref client_version) = client.client_version {
-        metadata.insert("client_version".into(), json!(client_version));
-    }
-    if let Some(ref subscription_tier) = client.subscription_tier {
-        metadata.insert("subscription_tier".into(), json!(subscription_tier));
-    }
-
-    // Product events path
-    if let (Some(url), Some(api_key)) = (&client.events_url, &client.events_api_key) {
-        let body = json!({
-            "viewer_context": {
-                "request_id": request_id,
-                "user_attributes": {
-                    "user_id": user_id,
-                    "user_type": "LoggedIn",
-                    "country": ctx.country,
-                    "language": ctx.language,
-                    "locale": "English",
-                },
-                "device_attributes": {
-                    "app_name": "Grok Code",
-                },
-            },
-            "api_key": api_key,
-            "events": [{
-                "event_name": event_name,
-                "event_value": event_value(event_name),
-                "event_metadata": metadata.clone(),
-                "timestamp": ctx.timestamp,
-            }]
-        });
-        let _ = client
-            .http_client
-            .post(url)
-            .header("x-api-key", api_key.as_str())
-            .timeout(std::time::Duration::from_secs(10))
-            .json(&body)
-            .send()
-            .await;
-    }
-
-    // Mixpanel path
-    if let Some(ref mixpanel) = client.mixpanel {
-        let time_secs = chrono::Utc::now().timestamp();
-        let insert_id = format!("{event_name}:{request_id}:{time_secs}");
-
-        // Convert serde_json::Map to HashMap for mixpanel
-        let mut props: std::collections::HashMap<String, serde_json::Value> =
-            metadata.into_iter().collect();
-        props.insert("distinct_id".into(), json!(user_id));
-        props.insert("time".into(), json!(time_secs));
-        props.insert("$insert_id".into(), json!(insert_id));
-        props.insert("app_name".into(), json!("Grok Code"));
-        props.insert("user_type".into(), json!("LoggedIn"));
-        props.insert("country".into(), json!(ctx.country));
-        props.insert("language".into(), json!(ctx.language));
-        props.insert("locale".into(), json!("English"));
-
-        let _ = mixpanel.track(event_name, Some(props)).await;
-    }
+/// Former telemetry emitter. Telemetry removed from this build: no-op,
+/// sends nothing to any product-events endpoint or analytics service.
+pub async fn track(
+    _event_name: &str,
+    _request_id: &str,
+    _ctx: &UserContext,
+    _metadata: Metadata,
+) {
 }
 
-/// Sync the user's Mixpanel profile once per init. Fire-and-forget.
-pub fn sync_profile() {
-    let lock = TELEMETRY_CLIENT.get_or_init(|| Mutex::new(None));
-    let client = {
-        let guard = lock.lock().unwrap_or_else(|err| err.into_inner());
-        match guard.clone() {
-            Some(c) => c,
-            None => return,
-        }
-    };
-
-    let Some(mixpanel) = client.mixpanel.clone() else {
-        return;
-    };
-
-    let agent_id = crate::id::agent_id();
-    let user_id = client.user_id.as_deref().unwrap_or(&agent_id).to_owned();
-
-    tokio::spawn(async move {
-        let mut props = std::collections::HashMap::new();
-        props.insert("agent_id".into(), json!(agent_id));
-        props.insert("shell_version".into(), json!(client.shell_version));
-        props.insert("app_name".into(), json!("Grok Code"));
-        if let Some(ref client_type) = client.client_type {
-            props.insert("client_type".into(), json!(client_type));
-        }
-        if let Some(ref client_version) = client.client_version {
-            props.insert("client_version".into(), json!(client_version));
-        }
-        if let Some(ref deployment_id) = client.deployment_id {
-            props.insert("deployment_id".into(), json!(deployment_id));
-        }
-        if let Some(ref team_id) = client.team_id {
-            props.insert("team_id".into(), json!(team_id));
-        }
-        if let Some(ref subscription_tier) = client.subscription_tier {
-            props.insert("subscription_tier".into(), json!(subscription_tier));
-        }
-        let _ = mixpanel.engage(&user_id, props).await;
-    });
-}
+/// Former Mixpanel profile sync. Telemetry removed from this build: no-op,
+/// sends nothing.
+pub fn sync_profile() {}
 
 /// Initialize telemetry client. Safe to call multiple times.
 ///

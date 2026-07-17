@@ -1,6 +1,6 @@
 //! `x.ai/billing` extension handler.
 //!
-//! Fetches the authenticated user's Grok Build billing configuration
+//! Fetches the authenticated user's Your Own AI Build billing configuration
 //! (credit limit, usage, on-demand cap, billing period, history) from
 //! the backend. Used by the pager/desktop to display credits and usage.
 
@@ -57,7 +57,7 @@ pub struct BillingPeriodUsage {
     pub total_used: Option<Cent>,
 }
 
-/// Current billing configuration for Grok Build coding credits.
+/// Current billing configuration for Your Own AI Build coding credits.
 ///
 /// Carries both the newer credits-config fields (`credit_usage_percent`,
 /// `current_period`) and the deprecated `GrokBuildBillingConfig` fields

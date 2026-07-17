@@ -14,10 +14,10 @@ curl -fsSL https://x.ai/cli/install.sh | bash
 grok
 
 # Headless (for scripts/automation)
-grok -p "Explain this codebase"
+your-own-ai-build -p "Explain this codebase"
 
 # Agent mode (for IDE/app integration)
-grok agent stdio
+your-own-ai-build agent stdio
 ```
 
 ## Contents
@@ -44,7 +44,7 @@ grok agent stdio
   - [Memory](#memory) — cross-session knowledge persistence
   - [Sandbox](#sandbox) — OS-level filesystem/network isolation
 - **Reference**
-  - [Introspection (`grok inspect`)](#introspection)
+  - [Introspection (`your-own-ai-build inspect`)](#introspection)
   - [Claude Code Compatibility](#claude-code-compatibility)
   - [Built-in Tools](#built-in-tools)
   - [Session Persistence](#session-persistence) — storage layout, resume
@@ -68,13 +68,13 @@ curl -fsSL https://x.ai/cli/install.sh | bash -s 0.1.42
 Verify installation:
 
 ```bash
-grok --version
+your-own-ai-build --version
 ```
 
 Update to the latest version:
 
 ```bash
-grok update
+your-own-ai-build update
 ```
 
 ---
@@ -89,14 +89,14 @@ On first launch, Grok opens your browser to authenticate with grok.com:
 grok
 ```
 
-Credentials are stored in `~/.grok/auth.json` and persist across sessions. Tokens expire after 7 days; Grok will prompt you to re-authenticate when needed.
+Credentials are stored in `~/.your-own-ai-build/auth.json` and persist across sessions. Tokens expire after 7 days; Grok will prompt you to re-authenticate when needed.
 
 ### Re-authenticate
 
 To switch accounts or fix authentication issues:
 
 ```bash
-grok login
+your-own-ai-build login
 ```
 
 ### API Key
@@ -122,7 +122,7 @@ Authenticate developers via your own Identity Provider (Okta, Azure AD, Auth0) i
 **2. Configure the CLI** (config file or env vars):
 
 ```toml
-# ~/.grok/config.toml
+# ~/.your-own-ai-build/config.toml
 [grok_com_config.oidc]
 issuer = "https://acme.okta.com"
 client_id = "0oa1b2c3d4e5f6g7h8i9"
@@ -139,7 +139,7 @@ Customers typically also override the API endpoint to point at their own proxy:
 export GROK_CLI_CHAT_PROXY_BASE_URL="https://grok-proxy.acme.com/v1"
 ```
 
-**3. Run `grok`.** The CLI discovers endpoints via `{issuer}/.well-known/openid-configuration`, opens the IdP login page, and stores tokens in `~/.grok/auth.json`. The OIDC token is sent as `Authorization: Bearer` to the configured proxy. Tokens auto-refresh silently via the stored `refresh_token`.
+**3. Run `your-own-ai-build`.** The CLI discovers endpoints via `{issuer}/.well-known/openid-configuration`, opens the IdP login page, and stores tokens in `~/.your-own-ai-build/auth.json`. The OIDC token is sent as `Authorization: Bearer` to the configured proxy. Tokens auto-refresh silently via the stored `refresh_token`.
 
 **Optional fields:**
 
@@ -169,7 +169,7 @@ Grok is provider-agnostic — it doesn't know or care how your binary authentica
 1. Grok runs your command via `sh -c "<command>"`
 2. Your binary does whatever auth flow it needs (SSO login, device code, cert exchange, etc.)
 3. **stderr** → displayed directly to the user (use for login URLs, status messages, progress)
-4. **stdout** → captured by Grok and saved to `~/.grok/auth.json` as the access token
+4. **stdout** → captured by Grok and saved to `~/.your-own-ai-build/auth.json` as the access token
 5. exit 0 → success; exit non-zero → Grok falls through to interactive login
 
 #### The stdout / stderr Contract
@@ -216,7 +216,7 @@ echo "eyJhbGciOiJSUzI1NiIs..."
 #### Configuration
 
 ```toml
-# ~/.grok/config.toml
+# ~/.your-own-ai-build/config.toml
 [auth]
 auth_provider_command = "/usr/local/bin/my-auth-provider"
 auth_provider_label = "Acme Corp"   # optional — customizes the TUI login button
@@ -234,7 +234,7 @@ If your binary outputs a bare token string (not JSON with `expires_in`), set `au
 
 The command is run via `sh -c`, so it can be a binary path, a shell script, or a pipeline.
 
-When `auth_provider_label` is set, the TUI welcome screen shows **"Login with Acme Corp"** instead of "Login with grok.com". In headless mode (`grok -p`), the label has no effect — stderr from your binary is printed directly to the terminal.
+When `auth_provider_label` is set, the TUI welcome screen shows **"Login with Acme Corp"** instead of "Login with grok.com". In headless mode (`your-own-ai-build -p`), the label has no effect — stderr from your binary is printed directly to the terminal.
 
 > **Enterprise setup:** For a complete enterprise `config.toml` combining external auth, corporate proxy, and telemetry settings, see [Enterprise Deployment](#enterprise-deployment) in the Configuration section.
 
@@ -311,7 +311,7 @@ export GROK_AUTH_EARLY_INVALIDATION_SECS=300
 ```
 
 **Keep in mind:**
-- When using `auth_provider_command`, you don't need to run `grok login` before starting — Grok runs your binary automatically on first launch. You _can_ run `grok login` to explicitly hydrate `auth.json` ahead of time if you prefer.
+- When using `auth_provider_command`, you don't need to run `your-own-ai-build login` before starting — Grok runs your binary automatically on first launch. You _can_ run `your-own-ai-build login` to explicitly hydrate `auth.json` ahead of time if you prefer.
 - If both OIDC and `auth_provider_command` are configured: at **login** time, Grok tries OIDC silent refresh first (if a `refresh_token` exists), then the external binary, then browser-based login. During a **session**, whichever method is configured is used exclusively — if `auth_provider_command` is set it handles all mid-session refreshes; otherwise OIDC silent refresh is used.
 - Your binary's stderr output is displayed to the user but interactive stdin is not supported. This works well for browser-based SSO flows where the binary displays a URL and you complete authentication in the browser.
 
@@ -320,7 +320,7 @@ export GROK_AUTH_EARLY_INVALIDATION_SECS=300
 Enable debug logging to trace the auth flow:
 
 ```bash
-grok --debug-file /tmp/grok-auth.log -p "hello"
+your-own-ai-build --debug-file /tmp/grok-auth.log -p "hello"
 tail -f /tmp/grok-auth.log
 ```
 
@@ -336,12 +336,12 @@ Common log messages:
 
 ### Using auth.json for API Access
 
-If you've authenticated with `grok login`, you can use the stored credentials to call the CLI chat proxy directly via curl. The proxy requires specific headers that mirror what the grok CLI sends internally:
+If you've authenticated with `your-own-ai-build login`, you can use the stored credentials to call the CLI chat proxy directly via curl. The proxy requires specific headers that mirror what the grok CLI sends internally:
 
 ```bash
 curl -s -N -X POST "https://cli-chat-proxy.grok.com/v1/chat/completions" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $(jq -r '."https://accounts.x.ai/sign-in".key' ~/.grok/auth.json)" \
+  -H "Authorization: Bearer $(jq -r '."https://accounts.x.ai/sign-in".key' ~/.your-own-ai-build/auth.json)" \
   -H "X-XAI-Token-Auth: xai-grok-cli" \
   -H "x-grok-model-override: grok-build" \
   -d '{
@@ -355,7 +355,7 @@ curl -s -N -X POST "https://cli-chat-proxy.grok.com/v1/chat/completions" \
 
 | Header                           | Required | Purpose                                                                                                                                                                                   |
 | -------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Authorization: Bearer <token>`  | Yes      | Session token from `~/.grok/auth.json` (set by `grok login`)                                                                                                                              |
+| `Authorization: Bearer <token>`  | Yes      | Session token from `~/.your-own-ai-build/auth.json` (set by `your-own-ai-build login`)                                                                                                                              |
 | `X-XAI-Token-Auth: xai-grok-cli` | Yes      | Tells the auth middleware to validate as a CLI session token                                                                                                                              |
 | `x-grok-model-override: <model>` | Yes\*    | The proxy uses this header (not the JSON body) to route to the correct backend. \*Can be omitted for `grok-build` which is on the default route, but always safe to include. |
 
@@ -367,7 +367,7 @@ Most models behind the proxy only support streaming. Always use `"stream": true`
 | --------------------- | -------------- | ------------ |
 | `grok-build`    | ✅ Supported   | ✅ Supported |
 
-> **Note:** `auth.json` tokens expire after 7 days. Run `grok login` to refresh.
+> **Note:** `auth.json` tokens expire after 7 days. Run `your-own-ai-build login` to refresh.
 
 ---
 
@@ -378,7 +378,7 @@ The TUI (Terminal User Interface) provides a full interactive coding environment
 ### Launch
 
 ```bash
-grok [OPTIONS]
+your-own-ai-build [OPTIONS]
 ```
 
 ### Options
@@ -404,16 +404,16 @@ grok [OPTIONS]
 
 ```bash
 # Start in a specific project
-grok --cwd ~/projects/my-app
+your-own-ai-build --cwd ~/projects/my-app
 
 # Start with an initial task
-grok --prompt "Review this codebase and suggest improvements"
+your-own-ai-build --prompt "Review this codebase and suggest improvements"
 
 # Add project-specific rules
-grok --rules "Always use TypeScript. Prefer functional components."
+your-own-ai-build --rules "Always use TypeScript. Prefer functional components."
 
 # Auto-approve mode for trusted tasks
-grok --always-approve --prompt "Format all files"
+your-own-ai-build --always-approve --prompt "Format all files"
 ```
 
 ### Keyboard Shortcuts
@@ -511,7 +511,7 @@ Headless mode accepts a single prompt, executes it with full tool access, and re
 ### Basic Usage
 
 ```bash
-grok -p "Your prompt here"
+your-own-ai-build -p "Your prompt here"
 ```
 
 ### Options
@@ -555,13 +555,13 @@ Tool names correspond to the internal tool IDs shown below. For quick reference:
 
 ```bash
 # Only allow read-only tools
-grok -p "Explain this codebase" --tools "read_file,grep,list_dir"
+your-own-ai-build -p "Explain this codebase" --tools "read_file,grep,list_dir"
 
 # Remove web access and file editing
-grok -p "Review this code" --disallowed-tools "web_search,web_fetch,search_replace"
+your-own-ai-build -p "Review this code" --disallowed-tools "web_search,web_fetch,search_replace"
 
 # Remove shell access
-grok -p "Review this code" --disallowed-tools "run_terminal_cmd"
+your-own-ai-build -p "Review this code" --disallowed-tools "run_terminal_cmd"
 ```
 
 `--disallowed-tools` also supports special `Agent` entries to control subagent spawning:
@@ -574,10 +574,10 @@ grok -p "Review this code" --disallowed-tools "run_terminal_cmd"
 
 ```bash
 # Allow tools but prevent the agent from spawning any subagents
-grok -p "Fix this bug" --disallowed-tools "Agent"
+your-own-ai-build -p "Fix this bug" --disallowed-tools "Agent"
 
 # Block only the explore subagent
-grok -p "Refactor this module" --disallowed-tools "Agent(explore)"
+your-own-ai-build -p "Refactor this module" --disallowed-tools "Agent(explore)"
 ```
 
 When `--tools` is set, only the listed tools are available and default tool injection is disabled. When both flags are present, `--disallowed-tools` runs after `--tools` — use this to start from an allowlist and then remove specific entries.
@@ -604,19 +604,19 @@ Glob patterns support `*` (single-level wildcard) and `**` (recursive). A bare p
 
 ```bash
 # Deny all shell commands matching "rm*"
-grok -p "Clean up this project" --deny "Bash(rm*)"
+your-own-ai-build -p "Clean up this project" --deny "Bash(rm*)"
 
 # Allow npm commands, deny everything else dangerous
-grok -p "Set up the project" --allow "Bash(npm*)" --deny "Bash(sudo*)"
+your-own-ai-build -p "Set up the project" --allow "Bash(npm*)" --deny "Bash(sudo*)"
 
 # Deny edits outside src/
-grok -p "Refactor the code" --deny "Edit(/etc/**)"
+your-own-ai-build -p "Refactor the code" --deny "Edit(/etc/**)"
 
 # Allow all bash commands (auto-approve without prompting)
-grok -p "Build the project" --allow "Bash"
+your-own-ai-build -p "Build the project" --allow "Bash"
 
 # Combine: allow fetching docs sites, deny other URLs
-grok --allow "WebFetch(domain:docs.rs)" --deny "WebFetch(*)"
+your-own-ai-build --allow "WebFetch(domain:docs.rs)" --deny "WebFetch(*)"
 ```
 
 `--allow` and `--deny` can be repeated to add multiple rules. Deny rules take precedence over allow rules. These flags work in both TUI and headless mode.
@@ -625,26 +625,26 @@ grok --allow "WebFetch(domain:docs.rs)" --deny "WebFetch(*)"
 
 ```bash
 # Simple question
-grok -p "What does this project do?"
+your-own-ai-build -p "What does this project do?"
 
 # Use a specific model
-grok -p "Optimize this function" -m grok-build
+your-own-ai-build -p "Optimize this function" -m grok-build
 
 # Get JSON output for parsing
-grok -p "List all TODO comments in the codebase" --output-format json
+your-own-ai-build -p "List all TODO comments in the codebase" --output-format json
 
 # Streaming JSON for real-time processing
-grok -p "Explain the architecture" --output-format streaming-json
+your-own-ai-build -p "Explain the architecture" --output-format streaming-json
 
 # Multi-turn conversation (session ID is returned in JSON output)
-grok -p "Remember: the secret number is 42" --output-format json
-grok -p "What's the secret number?" --resume <sessionId>
+your-own-ai-build -p "Remember: the secret number is 42" --output-format json
+your-own-ai-build -p "What's the secret number?" --resume <sessionId>
 
 # Resume most recent session
-grok -p "Continue where we left off" -c
+your-own-ai-build -p "Continue where we left off" -c
 
 # Run in a different directory
-grok -p "Run the tests" --cwd ~/projects/other-app --always-approve
+your-own-ai-build -p "Run the tests" --cwd ~/projects/other-app --always-approve
 ```
 
 ### Scripting with Named Sessions
@@ -653,10 +653,10 @@ For CI and automation, `-s/--session-id` lets you choose your own session ID:
 
 ```bash
 # Start a session namespaced to a PR
-grok -p "Review the changes in this PR" -s "critique-myrepo-pr-123"
+your-own-ai-build -p "Review the changes in this PR" -s "critique-myrepo-pr-123"
 
 # Continue in the same session
-grok -p "Now check for security issues" -s "critique-myrepo-pr-123"
+your-own-ai-build -p "Now check for security issues" -s "critique-myrepo-pr-123"
 ```
 
 If the session exists it picks up where you left off; if not, a new one is created.
@@ -697,13 +697,13 @@ Here's a summary of the codebase...
 
 ```bash
 # Pipe output to a file
-grok -p "Generate a README" > README.md
+your-own-ai-build -p "Generate a README" > README.md
 
 # Parse JSON output with jq
-grok -p "List files" --output-format json | jq -r '.text'
+your-own-ai-build -p "List files" --output-format json | jq -r '.text'
 
 # CI/CD: automated code review
-grok -p "Review changes for bugs and security issues." \
+your-own-ai-build -p "Review changes for bugs and security issues." \
   --output-format json --always-approve | jq -r '.text' > review.md
 
 # Pipeline: chain with other tools
@@ -715,7 +715,7 @@ for file in src/*.js; do
 done
 
 # Pre-commit hook
-grok -p "Review staged changes for obvious bugs. Reply OK if fine, or list issues." \
+your-own-ai-build -p "Review staged changes for obvious bugs. Reply OK if fine, or list issues." \
   --always-approve --output-format json | jq -r '.text' | grep -q "^OK" || exit 1
 ```
 
@@ -732,7 +732,7 @@ Run Grok as an ACP (Agent Client Protocol) agent for integration with IDEs, edit
 For direct integration with ACP clients:
 
 ```bash
-grok agent stdio
+your-own-ai-build agent stdio
 ```
 
 Communication happens via JSON-RPC over stdin/stdout. This mode is used by:
@@ -755,7 +755,7 @@ Communication happens via JSON-RPC over stdin/stdout. This mode is used by:
 To expose the agent over the internet (instead of local network), run a WebSocket relay server and have the agent connect to it:
 
 ```bash
-grok agent headless --grok-ws-url wss://your-relay.example.com/ws
+your-own-ai-build agent headless --grok-ws-url wss://your-relay.example.com/ws
 ```
 
 The agent connects OUT to your relay, and your web clients connect to the same relay. Useful for building web UIs where browsers can't spawn local processes.
@@ -764,23 +764,23 @@ The agent connects OUT to your relay, and your web clients connect to the same r
 
 ---
 
-## SSH Passthrough (`grok ssh`)
+## SSH Passthrough (`your-own-ai-build ssh`)
 
-Use `grok ssh` instead of plain `ssh` when connecting to remote hosts in terminals that lack native support (e.g. Apple Terminal) for local OSC 52 clipboard interception.
+Use `your-own-ai-build ssh` instead of plain `ssh` when connecting to remote hosts in terminals that lack native support (e.g. Apple Terminal) for local OSC 52 clipboard interception.
 
 ```bash
 # Basic usage (same args as ssh)
-grok ssh user@host
+your-own-ai-build ssh user@host
 
 # With SSH flags
-grok ssh -t user@host
-grok ssh -L 8080:localhost:8080 user@host
+your-own-ai-build ssh -t user@host
+your-own-ai-build ssh -L 8080:localhost:8080 user@host
 
 # With remote command
-grok ssh user@host -- tmux attach
+your-own-ai-build ssh user@host -- tmux attach
 ```
 
-On macOS, if the terminal doesn't natively handle OSC 52, `grok ssh` runs SSH inside a local PTY that intercepts clipboard sequences and writes them to `pbcopy`. Both plain OSC 52 and tmux DCS passthrough are handled. Terminals with native OSC 52 (iTerm2, Ghostty, Kitty, WezTerm, Alacritty) get a plain `ssh` exec with no wrapper.
+On macOS, if the terminal doesn't natively handle OSC 52, `your-own-ai-build ssh` runs SSH inside a local PTY that intercepts clipboard sequences and writes them to `pbcopy`. Both plain OSC 52 and tmux DCS passthrough are handled. Terminals with native OSC 52 (iTerm2, Ghostty, Kitty, WezTerm, Alacritty) get a plain `ssh` exec with no wrapper.
 
 This runs entirely locally.
 
@@ -799,7 +799,7 @@ Grok can be used as an OpenAI-compatible chat completion backend. Choose between
 
 ### Headless Mode (Simple Chat Completion)
 
-Use headless mode for simple integrations. Spawns `grok -p` and parses JSON output.
+Use headless mode for simple integrations. Spawns `your-own-ai-build -p` and parses JSON output.
 
 #### Python - Headless
 
@@ -1272,7 +1272,7 @@ Grok implements the [Agent Client Protocol (ACP)](https://agentclientprotocol.co
 
 ## Configuration
 
-Grok reads configuration from `~/.grok/config.toml`. If the file doesn't exist, Grok uses sensible defaults. You only need to specify values you want to override.
+Grok reads configuration from `~/.your-own-ai-build/config.toml`. If the file doesn't exist, Grok uses sensible defaults. You only need to specify values you want to override.
 
 Each feature section below documents its own config. This section covers the general-purpose settings that don't have their own top-level section.
 
@@ -1349,7 +1349,7 @@ Reference: [Language Server Protocol](https://microsoft.github.io/language-serve
 Grok looks for server definitions in:
 
 - project config: `<repo>/.grok/lsp.json`
-- user config: `~/.grok/lsp.json`
+- user config: `~/.your-own-ai-build/lsp.json`
 
 If the same server name appears in both places, the project config wins.
 
@@ -1452,7 +1452,7 @@ default = "company-grok"
 [model.company-grok]
 model = "grok-build"
 base_url = "https://grok-proxy.acme.com/"
-name = "Grok Build Latest (Proxy)"
+name = "Your Own AI Build Latest (Proxy)"
 context_window = 256000
 
 [features]
@@ -1463,7 +1463,7 @@ telemetry = false
 timeout_secs = 120.0
 ```
 
-With this config, `grok` runs your auth binary, stores the token, and routes inference through your corporate proxy. See [Authentication](#authentication) for full auth setup details.
+With this config, `your-own-ai-build` runs your auth binary, stores the token, and routes inference through your corporate proxy. See [Authentication](#authentication) for full auth setup details.
 
 ---
 
@@ -1473,7 +1473,7 @@ Add project-specific instructions by creating an agent rules file (e.g., `AGENTS
 
 Grok scans for agent rules in this order:
 
-1. `~/.grok/` (global rules)
+1. `~/.your-own-ai-build/` (global rules)
 2. If inside a git repo: every directory from the repo root → current working directory (inclusive)
 3. If **not** inside a git repo: only the current working directory
 
@@ -1499,12 +1499,12 @@ Grok discovers skills from these directories (in priority order):
 | --------------------------- | ----- | -------- |
 | `./.grok/skills/`           | Local | Highest  |
 | `<repo_root>/.grok/skills/` | Repo  | Medium   |
-| `~/.grok/skills/`           | User  | Lowest   |
+| `~/.your-own-ai-build/skills/`           | User  | Lowest   |
 | `~/.claude/skills/`         | User  | Lowest   |
 
 Skills with the same name are deduplicated — higher priority locations override lower ones.
 
-Repo-scoped skills (Local and Repo) respect `.gitignore` and are filtered out if ignored. User-scoped skills (`~/.grok/skills/`) are outside the repo and never filtered.
+Repo-scoped skills (Local and Repo) respect `.gitignore` and are filtered out if ignored. User-scoped skills (`~/.your-own-ai-build/skills/`) are outside the repo and never filtered.
 
 ### Configuration
 
@@ -1521,7 +1521,7 @@ ignore = ["~/my-team-skills/wip"]     # paths to exclude
 Each skill lives in its own directory with a `SKILL.md` file:
 
 ```
-~/.grok/skills/
+~/.your-own-ai-build/skills/
 └── commit/
     └── SKILL.md
 ```
@@ -1576,7 +1576,7 @@ Users can reference skills as `/skill-name` (e.g., `/commit`). When you see this
 
 Agent profiles control the system prompt, toolset, and behavior of a session. A profile is a `.md` file with YAML frontmatter, or a named agent discovered from disk.
 
-Grok discovers agent definitions from `.grok/agents/` (project), `~/.grok/agents/` (user), and built-in agents. Priority (highest wins):
+Grok discovers agent definitions from `.grok/agents/` (project), `~/.your-own-ai-build/agents/` (user), and built-in agents. Priority (highest wins):
 
 1. `--agent-profile <PATH>` CLI flag
 2. `[agent]` section in `config.toml`
@@ -1584,14 +1584,14 @@ Grok discovers agent definitions from `.grok/agents/` (project), `~/.grok/agents
 4. Default `grok-build` agent
 
 ```toml
-# ~/.grok/config.toml
+# ~/.your-own-ai-build/config.toml
 [agent]
 name = "my-custom-agent"             # Discovered by name
 # definition = "/path/to/agent.md"   # OR: explicit path
 ```
 
 ```bash
-grok --agent-profile ./my-agent.md
+your-own-ai-build --agent-profile ./my-agent.md
 # or
 export GROK_AGENT="my-custom-agent"
 ```
@@ -1609,7 +1609,7 @@ export GROK_SUBAGENTS=0              # Environment variable
 ```
 
 ```toml
-# ~/.grok/config.toml
+# ~/.your-own-ai-build/config.toml
 [subagents]
 enabled = false
 ```
@@ -1661,13 +1661,13 @@ Plugins extend Grok with additional tools, skills, and MCP servers from external
 | Location                    | Scope   |
 | --------------------------- | ------- |
 | `.grok/plugins/`            | Project |
-| `~/.grok/plugins/`          | User    |
+| `~/.your-own-ai-build/plugins/`          | User    |
 | `--plugin-dir <PATH>` (CLI) | Session |
 
 ### Configuration
 
 ```toml
-# ~/.grok/config.toml
+# ~/.your-own-ai-build/config.toml
 [plugins]
 paths = ["~/my-plugins/custom-tools"]       # additional plugin directories
 disabled = ["user/a1b2c3d4/noisy-plugin"]   # plugin IDs to skip
@@ -1743,7 +1743,7 @@ api_key = "sk-custom"
 
 > **Overriding with a custom model:** Setting `[models] web_search` alone is not
 > enough if the model isn't already in the catalog (built-in defaults or
-> `grok models` output). You also need a `[model.*]` entry so Grok knows
+> `your-own-ai-build models` output). You also need a `[model.*]` entry so Grok knows
 > how to reach it. Without both, web search is silently disabled.
 >
 > ```toml
@@ -1801,13 +1801,13 @@ env_key = "OPENAI_API_KEY"
 
 ```bash
 # List available models (including custom)
-grok models
+your-own-ai-build models
 
 # Use in TUI via slash command
 /model my-model
 
 # Use in headless mode
-grok -p "Hello" -m my-model
+your-own-ai-build -p "Hello" -m my-model
 
 # Set as default
 # In config.toml:
@@ -1839,7 +1839,7 @@ Grok fetches the model list from `{GROK_MODELS_BASE_URL}/models` on startup and 
 
 If your model list endpoint differs from `{base_url}/models`, set `GROK_MODELS_LIST_URL` explicitly.
 
-**Combining with `[endpoints]` config:** You can also set endpoints in `~/.grok/config.toml`:
+**Combining with `[endpoints]` config:** You can also set endpoints in `~/.your-own-ai-build/config.toml`:
 
 ```toml
 [endpoints]
@@ -1852,7 +1852,7 @@ api_key = "my-api-key"
 
 When using `[endpoints]` with partial model overrides, the `base_url` is inherited from the endpoints config — you don't need to specify it in each `[model.*]` section.
 
-**Auth behavior:** When `models_base_url` is set, Grok uses API key auth (`Authorization: Bearer`) instead of session auth. `grok login` is not required — only the API key.
+**Auth behavior:** When `models_base_url` is set, Grok uses API key auth (`Authorization: Bearer`) instead of session auth. `your-own-ai-build login` is not required — only the API key.
 
 ---
 
@@ -1862,7 +1862,7 @@ Extend Grok's capabilities with [Model Context Protocol](https://modelcontextpro
 
 ### Configuration
 
-MCP servers are configured in `~/.grok/config.toml`:
+MCP servers are configured in `~/.your-own-ai-build/config.toml`:
 
 ```toml
 [mcp_servers.<name>]
@@ -1882,7 +1882,7 @@ MCP servers can also be configured per-project in `.grok/config.toml`. Grok walk
 
 | Location                        | Scope             | Priority |
 | ------------------------------- | ----------------- | -------- |
-| `~/.grok/config.toml`           | All projects      | Lowest   |
+| `~/.your-own-ai-build/config.toml`           | All projects      | Lowest   |
 | `<repo-root>/.grok/config.toml` | This repository   | ↑        |
 | `<cwd>/.grok/config.toml`       | Current directory | Highest  |
 
@@ -1905,9 +1905,9 @@ command = "npx"
 args = ["-y", "mcp-remote", "https://mcp.linear.app/mcp"]
 ```
 
-If you also have a `linear` server in `~/.grok/config.toml`, the project version replaces it entirely.
+If you also have a `linear` server in `~/.your-own-ai-build/config.toml`, the project version replaces it entirely.
 
-> **Note:** Only `[mcp_servers]` is supported in project-scoped `.grok/config.toml`. Other config sections (models, shortcuts, etc.) are only read from `~/.grok/config.toml`.
+> **Note:** Only `[mcp_servers]` is supported in project-scoped `.grok/config.toml`. Other config sections (models, shortcuts, etc.) are only read from `~/.your-own-ai-build/config.toml`.
 
 ### Tool Naming
 
@@ -1981,10 +1981,10 @@ Cross-session memory lets Grok remember facts, decisions, code patterns, and deb
 
 ### How it works
 
-Memory is stored as Markdown files under `~/.grok/memory/`:
-- **Global** (`~/.grok/memory/MEMORY.md`) — facts that apply across all your projects
-- **Workspace** (`~/.grok/memory/<project-slug>-<hash8>/MEMORY.md`) — project-specific conventions and context
-- **Session logs** (`~/.grok/memory/<project-slug>-<hash8>/sessions/`) — per-session summaries
+Memory is stored as Markdown files under `~/.your-own-ai-build/memory/`:
+- **Global** (`~/.your-own-ai-build/memory/MEMORY.md`) — facts that apply across all your projects
+- **Workspace** (`~/.your-own-ai-build/memory/<project-slug>-<hash8>/MEMORY.md`) — project-specific conventions and context
+- **Session logs** (`~/.your-own-ai-build/memory/<project-slug>-<hash8>/sessions/`) — per-session summaries
 
 Workspace directories are suffixed with a short hash for uniqueness (e.g. `xai-a3f7b2c9/`). The hash is derived from the git remote URL so all clones and worktrees of the same repository share the same memory directory.
 
@@ -1994,14 +1994,14 @@ An SQLite index enables fast hybrid search (FTS5 keyword + optional vector KNN) 
 
 ```bash
 # Per-session flag
-grok --experimental-memory
+your-own-ai-build --experimental-memory
 
 # Environment variable (persists for the shell session)
 export GROK_MEMORY=1
 grok
 
 # Config file (persists permanently)
-# ~/.grok/config.toml
+# ~/.your-own-ai-build/config.toml
 [memory]
 enabled = true
 ```
@@ -2024,7 +2024,7 @@ This summary is searchable in future sessions but does **not** capture full cont
 
 ### Capturing rich knowledge with `/flush`
 
-For richer capture — decisions, patterns, debugging workflows, API discoveries — use `/flush` in the TUI. This triggers an LLM-generated summary of the current session's most important content and writes it to a dated session log under `~/.grok/memory/<project-slug>-<hash8>/sessions/`, where it is indexed and searchable in future sessions.
+For richer capture — decisions, patterns, debugging workflows, API discoveries — use `/flush` in the TUI. This triggers an LLM-generated summary of the current session's most important content and writes it to a dated session log under `~/.your-own-ai-build/memory/<project-slug>-<hash8>/sessions/`, where it is indexed and searchable in future sessions.
 
 Use `/flush` when you want to preserve important context before compaction or at any point during a productive session.
 
@@ -2057,24 +2057,24 @@ Read my workspace MEMORY.md
 
 ```bash
 # Open workspace MEMORY.md in $EDITOR / $VISUAL
-grok memory edit
+your-own-ai-build memory edit
 
 # Open global MEMORY.md
-grok memory edit --global
+your-own-ai-build memory edit --global
 
 # Show memory statistics: file count, chunk count, and index size
-grok memory stats
+your-own-ai-build memory stats
 ```
 
 ### Configuration reference
 
-Key options under `[memory]` in `~/.grok/config.toml`:
+Key options under `[memory]` in `~/.your-own-ai-build/config.toml`:
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `enabled` | `false` | Enable memory (can also be set via CLI flag or env var) |
 | `session.save_on_end` | `true` | Write the lightweight metadata summary on session end |
-| `watcher.enabled` | `true` | Watch `~/.grok/memory/` for external edits and reindex on search |
+| `watcher.enabled` | `true` | Watch `~/.your-own-ai-build/memory/` for external edits and reindex on search |
 | `search.max_results` | `6` | Default number of memory results to return |
 | `search.min_score` | `0.35` | Minimum relevance score threshold for explicit memory search and recovery paths |
 | `initial_injection.enabled` | `true` | Enable automatic first-turn memory injection |
@@ -2102,13 +2102,13 @@ Seatbelt on macOS). This is off by default.
 
 ```bash
 # Run with workspace sandbox (read everywhere, write only to CWD + /tmp)
-grok --sandbox workspace
+your-own-ai-build --sandbox workspace
 
 # Read-only mode (agent can read but not write anything)
-grok --sandbox read-only
+your-own-ai-build --sandbox read-only
 
 # Maximum isolation (read/write CWD only, no child network)
-grok --sandbox strict
+your-own-ai-build --sandbox strict
 ```
 
 ### Built-in Profiles
@@ -2116,16 +2116,16 @@ grok --sandbox strict
 | Profile         | FS Read            | FS Write                  | Child Network | Use Case                 |
 | --------------- | ------------------ | ------------------------- | ------------- | ------------------------ |
 | `off` (default) | Unrestricted       | Unrestricted              | Unrestricted  | No sandbox               |
-| `workspace`     | Everywhere         | CWD + `/tmp` + `~/.grok/` | Allowed       | Normal development       |
-| `read-only`     | Everywhere         | `~/.grok/` only           | Blocked       | Exploration, code review |
-| `strict`        | CWD + system paths | CWD + `/tmp` + `~/.grok/` | Blocked       | Untrusted code           |
+| `workspace`     | Everywhere         | CWD + `/tmp` + `~/.your-own-ai-build/` | Allowed       | Normal development       |
+| `read-only`     | Everywhere         | `~/.your-own-ai-build/` only           | Blocked       | Exploration, code review |
+| `strict`        | CWD + system paths | CWD + `/tmp` + `~/.your-own-ai-build/` | Blocked       | Untrusted code           |
 
-Sensitive paths (`~/.ssh/`, `~/.aws/`, `~/.gnupg/`, `~/.grok/auth/`) are always
+Sensitive paths (`~/.ssh/`, `~/.aws/`, `~/.gnupg/`, `~/.your-own-ai-build/auth/`) are always
 write-protected regardless of profile.
 
 ### Custom Profiles
 
-Create `~/.grok/sandbox.toml` (global) or `.grok/sandbox.toml` (per-project):
+Create `~/.your-own-ai-build/sandbox.toml` (global) or `.grok/sandbox.toml` (per-project):
 
 ```toml
 [profiles.devbox]
@@ -2146,7 +2146,7 @@ deny = ["/data/shared-secrets"]
 Use it:
 
 ```bash
-grok --sandbox devbox
+your-own-ai-build --sandbox devbox
 ```
 
 ### How It Works
@@ -2177,24 +2177,24 @@ model cannot convince the agent to relax restrictions at runtime.
 
 ### Event Logging
 
-Sandbox events (profile applied, violations) are logged to `~/.grok/sandbox-events.jsonl`
+Sandbox events (profile applied, violations) are logged to `~/.your-own-ai-build/sandbox-events.jsonl`
 for telemetry and debugging.
 
 ---
 
 ## Introspection
 
-Use `grok inspect` to see everything Grok discovers in the current directory:
+Use `your-own-ai-build inspect` to see everything Grok discovers in the current directory:
 
 ```bash
-grok inspect          # human-readable output
-grok inspect --json   # machine-readable JSON
+your-own-ai-build inspect          # human-readable output
+your-own-ai-build inspect --json   # machine-readable JSON
 ```
 
 The output shows all loaded configuration organized by type:
 
 - **Project Instructions** — AGENTS.md / CLAUDE.md files with token counts
-- **Skills** — from `.grok/skills/`, `~/.grok/skills/`, plugins, and config paths
+- **Skills** — from `.grok/skills/`, `~/.your-own-ai-build/skills/`, plugins, and config paths
 - **Agents** — built-in, user-defined, and plugin-provided subagents
 - **Plugins** — discovered plugins with what each provides (skills, agents, hooks, MCPs)
 - **MCP Servers** — from `config.toml`, plugins, `~/.claude.json`, and `.mcp.json`
@@ -2284,10 +2284,10 @@ Grok automatically persists conversations to disk. This works across all modes: 
 
 ### Storage Layout
 
-Sessions are stored under `~/.grok/sessions/`, organized by URL-encoded working directory:
+Sessions are stored under `~/.your-own-ai-build/sessions/`, organized by URL-encoded working directory:
 
 ```
-~/.grok/sessions/<encoded-cwd>/<session-id>/
+~/.your-own-ai-build/sessions/<encoded-cwd>/<session-id>/
   summary.json            # metadata: title, timestamps, model, message count
   updates.jsonl           # ACP session update stream (conversation + tool calls)
   chat_history.jsonl      # raw chat messages sent to the model
@@ -2317,23 +2317,23 @@ Control session behavior with flags:
 
 ```bash
 # New session each time (default)
-grok -p "Hello"
+your-own-ai-build -p "Hello"
 
 # Create or resume a named session
-grok -p "Remember: X=42" -s my-session
-grok -p "What is X?" -s my-session
+your-own-ai-build -p "Remember: X=42" -s my-session
+your-own-ai-build -p "What is X?" -s my-session
 
 # Resume existing session (errors if not found)
-grok -p "Continue" -r my-session
+your-own-ai-build -p "Continue" -r my-session
 
 # Continue most recent session in current directory
-grok -p "What were we doing?" -c
+your-own-ai-build -p "What were we doing?" -c
 ```
 
 Session ID is returned in JSON output:
 
 ```bash
-grok -p "Hello" --output-format json | jq -r '.sessionId'
+your-own-ai-build -p "Hello" --output-format json | jq -r '.sessionId'
 ```
 
 ### Agent stdio (ACP)
@@ -2363,13 +2363,13 @@ The agent persists all session updates automatically. Clients can reconnect and 
 
 | Path                  | Description                                         |
 | --------------------- | --------------------------------------------------- |
-| `~/.grok/config.toml` | Configuration file                                  |
-| `~/.grok/sessions/`   | Persisted sessions (organized by working directory) |
-| `~/.grok/auth.json`   | Authentication credentials (auto-managed)           |
-| `~/.grok/memory/`     | Cross-session memory files and index                |
-| `~/.grok/skills/`     | User-scoped skill definitions                       |
-| `~/.grok/plugins/`    | User-scoped plugins                                 |
-| `~/.grok/agents/`     | User-scoped agent definitions                       |
+| `~/.your-own-ai-build/config.toml` | Configuration file                                  |
+| `~/.your-own-ai-build/sessions/`   | Persisted sessions (organized by working directory) |
+| `~/.your-own-ai-build/auth.json`   | Authentication credentials (auto-managed)           |
+| `~/.your-own-ai-build/memory/`     | Cross-session memory files and index                |
+| `~/.your-own-ai-build/skills/`     | User-scoped skill definitions                       |
+| `~/.your-own-ai-build/plugins/`    | User-scoped plugins                                 |
+| `~/.your-own-ai-build/agents/`     | User-scoped agent definitions                       |
 | `.grok/config.toml`   | Project-scoped config (MCP servers)                 |
 | `.grok/skills/`       | Project-scoped skill definitions                    |
 | `.grok/plugins/`      | Project-scoped plugins                              |
@@ -2396,7 +2396,7 @@ The agent persists all session updates automatically. Clients can reconnect and 
 | `GROK_AUTH_EARLY_INVALIDATION_SECS` | Seconds before `expires_at` to consider a token expired (default: `300`). See [Automatic Credential Refresh](#automatic-credential-refresh) |
 | `GROK_OIDC_ISSUER`              | OIDC issuer URL (alternative to config file). See [OIDC](#oidc-customer-sso)                             |
 | `GROK_OIDC_CLIENT_ID`           | OIDC client ID (alternative to config file). See [OIDC](#oidc-customer-sso)                              |
-| `GROK_HOME`                     | Override config directory (default: `~/.grok`)                                                           |
+| `GROK_HOME`                     | Override config directory (default: `~/.your-own-ai-build`)                                                           |
 | `GROK_SUBAGENTS`                | Enable (`1`) or disable (`0`) subagent/task tool support                                                 |
 | `GROK_MEMORY`                   | Enable (`1`) or disable (`0`) cross-session memory                                                       |
 | `GROK_AGENT`                    | Custom agent definition path or name (see [Agent Profiles](#agent-profiles))                             |
@@ -2406,14 +2406,14 @@ The agent persists all session updates automatically. Clients can reconnect and 
 | `GROK_FEEDBACK_ENABLED`         | Enable (`1`) or disable (`0`) feedback system independently from telemetry                               |
 | `GROK_DEPLOYMENT_KEY`           | Management API key for enterprise deployments                                                            |
 | `GROK_LOG_FILE`                 | Enable file logging by providing a file path (the value is used verbatim as the path)                    |
-| `GROK_DEBUG_LOG`                | Debug firehose (set by `--debug`): truthy routes per-session logs to `~/.grok/debug/<sessionId>.txt`, a path writes that one file |
+| `GROK_DEBUG_LOG`                | Debug firehose (set by `--debug`): truthy routes per-session logs to `~/.your-own-ai-build/debug/<sessionId>.txt`, a path writes that one file |
 | `RUST_LOG`                      | Log filter for stderr (headless `-p` defaults to `off`, other non-TUI modes to `error`; TUI captures stderr) and for the `GROK_LOG_FILE` log; the `--debug` firehose ignores it |
 
 ---
 
 ## Shell Completions
 
-Generate completions for your shell and install them to enable tab completion for `grok` commands and flags.
+Generate completions for your shell and install them to enable tab completion for `your-own-ai-build` commands and flags.
 
 **Note:** The paths below are recommended defaults. Some environments do not automatically source the standard locations — you may need to adapt them to your shell framework or distro conventions.
 
@@ -2423,7 +2423,7 @@ Generate and install:
 
 ```bash
 mkdir -p ~/.local/share/bash-completion/completions
-grok completions bash > ~/.local/share/bash-completion/completions/grok
+your-own-ai-build completions bash > ~/.local/share/bash-completion/completions/grok
 ```
 
 Reload your shell or run `source ~/.bashrc`.
@@ -2431,8 +2431,8 @@ Reload your shell or run `source ~/.bashrc`.
 Alternative (Grok-managed location):
 
 ```bash
-mkdir -p ~/.grok/completions/bash
-grok completions bash > ~/.grok/completions/bash/grok.bash
+mkdir -p ~/.your-own-ai-build/completions/bash
+your-own-ai-build completions bash > ~/.your-own-ai-build/completions/bash/grok.bash
 ```
 
 Add to `~/.bashrc`:
@@ -2447,7 +2447,7 @@ Generate and install:
 
 ```bash
 mkdir -p ~/.zsh/completions
-grok completions zsh > ~/.zsh/completions/_grok
+your-own-ai-build completions zsh > ~/.zsh/completions/_grok
 ```
 
 Add to `~/.zshrc`:
@@ -2461,8 +2461,8 @@ compinit
 Alternative (Grok-managed location):
 
 ```bash
-mkdir -p ~/.grok/completions/zsh
-grok completions zsh > ~/.grok/completions/zsh/_grok
+mkdir -p ~/.your-own-ai-build/completions/zsh
+your-own-ai-build completions zsh > ~/.your-own-ai-build/completions/zsh/_grok
 ```
 
 Add to `~/.zshrc`:
@@ -2475,7 +2475,7 @@ compinit
 
 ### After Upgrading
 
-Regenerate completions after upgrading `grok` — the script reflects the CLI of the installed version.
+Regenerate completions after upgrading `your-own-ai-build` — the script reflects the CLI of the installed version.
 
 ---
 
@@ -2483,17 +2483,17 @@ Regenerate completions after upgrading `grok` — the script reflects the CLI of
 
 ### Debug logging
 
-Write logs to a file for debugging. The TUI captures stderr, so `RUST_LOG` alone won't produce visible output in production — use `grok --debug` or `GROK_LOG_FILE` instead:
+Write logs to a file for debugging. The TUI captures stderr, so `RUST_LOG` alone won't produce visible output in production — use `your-own-ai-build --debug` or `GROK_LOG_FILE` instead:
 
 ```bash
-# Per-session debug log (~/.grok/debug/<sessionId>.txt)
-grok --debug
+# Per-session debug log (~/.your-own-ai-build/debug/<sessionId>.txt)
+your-own-ai-build --debug
 
 # Log to a custom path
 GROK_LOG_FILE=/tmp/grok-debug.log grok
 
 # Tail the most-recently-opened session's log in another terminal (Unix symlink)
-tail -f ~/.grok/debug/latest.txt
+tail -f ~/.your-own-ai-build/debug/latest.txt
 ```
 
 The `--debug` firehose uses a fixed filter (first-party crates at `debug`) and is not narrowed by `RUST_LOG`. A `GROK_LOG_FILE` log defaults to `debug` and honors `RUST_LOG`, so you can set module-level filters for targeted debugging:
@@ -2507,10 +2507,10 @@ GROK_LOG_FILE=/tmp/grok-debug.log RUST_LOG="info,xai_grok_shell::auth=debug" gro
 
 ```bash
 # Clear credentials and re-login
-grok login
+your-own-ai-build login
 
 # Debug auth issues — check the log for "auth:" entries
-grok --debug-file /tmp/grok-auth.log -p "hello"
+your-own-ai-build --debug-file /tmp/grok-auth.log -p "hello"
 grep "auth:" /tmp/grok-auth.log
 ```
 
@@ -2518,7 +2518,7 @@ grep "auth:" /tmp/grok-auth.log
 
 ```bash
 # List available models
-grok models
+your-own-ai-build models
 
 # Check config.toml for typos in [model.*] sections
 ```
@@ -2548,16 +2548,16 @@ Session files are plain JSON/JSONL and can be inspected directly:
 
 ```bash
 # Find sessions for the current directory
-ls ~/.grok/sessions/
+ls ~/.your-own-ai-build/sessions/
 
 # Read session metadata
-cat ~/.grok/sessions/<encoded-cwd>/<session-id>/summary.json | jq .
+cat ~/.your-own-ai-build/sessions/<encoded-cwd>/<session-id>/summary.json | jq .
 
 # View conversation history
-cat ~/.grok/sessions/<encoded-cwd>/<session-id>/updates.jsonl | head -20
+cat ~/.your-own-ai-build/sessions/<encoded-cwd>/<session-id>/updates.jsonl | head -20
 
 # Count turns in a session
-wc -l ~/.grok/sessions/<encoded-cwd>/<session-id>/chat_history.jsonl
+wc -l ~/.your-own-ai-build/sessions/<encoded-cwd>/<session-id>/chat_history.jsonl
 ```
 
 ### Context window full

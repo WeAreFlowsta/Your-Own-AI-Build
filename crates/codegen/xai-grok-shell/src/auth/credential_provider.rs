@@ -127,7 +127,9 @@ pub fn build_storage_client_for_proxy(
     session_id: Option<String>,
     client_identifier: &str,
 ) -> xai_file_utils::storage_client::StorageClient {
-    let http_client = crate::http::shared_upload_client();
+    // Cloud upload removed from this build: the stubbed `StorageClient`
+    // performs no network I/O, so a plain default client placeholder is fine.
+    let http_client = reqwest::Client::new();
     if let Some(am) = auth_manager {
         let provider: Arc<dyn AuthCredentialProvider> = Arc::new(ShellAuthCredentialProvider::new(
             am.clone(),

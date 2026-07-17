@@ -117,7 +117,7 @@
 - **Subagent rows** now fold into verb-group headers and the tasks pane shows live activity labels.
 - **Dashboard shortcuts** now advertise ? instead of Ctrl+. on terminals that cannot deliver the latter.
 - **Double-clicking** scrollback while Text selection is fold/nav now shows a tip offering Ctrl+Y to enable Word select.
-- **`grok worktree ls`** now works as a short alias for `grok worktree list`.
+- **`your-own-ai-build worktree ls`** now works as a short alias for `your-own-ai-build worktree list`.
 - **MCP tool output truncation** can now be set per-repo in `.grok/config.toml`.
 - **Auto-send of queued follow-ups** during task waits can now be enabled fleet-wide via remote settings.
 - **Welcome screen** now offers one-click resume of a recent Claude Code session via ctrl+u.
@@ -159,7 +159,7 @@
 - **IME text input in Otty** no longer attaches unrelated clipboard images on every character.
 - **Rewind** now fully removes the selected turn from both scrollback and the model's conversation history.
 - **Queued prompts** now abort long blocking waits instead of waiting for the full timeout.
-- **File links and media** now work for worktree sessions under ~/.grok/worktrees/.
+- **File links and media** now work for worktree sessions under ~/.your-own-ai-build/worktrees/.
 - **Collapsed Read/Edit tool rows** now show only the filename instead of long absolute paths.
 - **Clipboard copies on Wayland** now succeed even when the terminal loses focus mid-copy.
 - **User messages queued** behind an auto-wake turn are no longer lost when the user presses Ctrl+C.
@@ -259,7 +259,7 @@
 - **grok models** banner now correctly reports per-model API keys and deployment keys.
 - MCP tool output size limit is now configurable via environment variable, config.toml, or remote settings (default unchanged).
 - Chat conversations listed in the unified sidebar can now be renamed or deleted from the desktop app.
-- You can now add a local directory as a plugin marketplace source with `grok plugin marketplace add`.
+- You can now add a local directory as a plugin marketplace source with `your-own-ai-build plugin marketplace add`.
 - **Auto permission mode** now prompts far less often on routine development commands.
 - Short media paths the model prints (images/1.jpg) are now clickable and open the file.
 - **Preview** now prefers common dev ports like 8080 when multiple HTTP servers are detected.
@@ -354,7 +354,7 @@
 
 ## Bug Fixes
 
-- **--minimal** flag now shows in `grok --help`.
+- **--minimal** flag now shows in `your-own-ai-build --help`.
 - **Session resume notifications** no longer appear when a workspace boots for the first time.
 - **Claude-style Bash(cmd:*)** permission rules are now correctly translated to prefix matches.
 
@@ -400,7 +400,7 @@
 - **Queue panel** now shows action buttons on hover and the status bar displays a compact done/total task count.
 - **Hook matchers** now correctly see the real MCP tool name instead of the internal dispatcher name.
 - **Copy** now succeeds when running inside containers even when the terminal brand cannot be detected.
-- **Tool result previews** no longer paint opaque panels in `grok --minimal`.
+- **Tool result previews** no longer paint opaque panels in `your-own-ai-build --minimal`.
 - **grok wrap** now correctly handles quoted strings and shell aliases.
 - **Text selection** settings now correctly honor explicit keep_text_selection values even when legacy keys remain.
 - **Fixed a freeze** that could occur when editing and sending the last message in the queue.
@@ -517,14 +517,14 @@
 
 ## Performance
 
-- **`grok update`** downloads have a longer timeout.
+- **`your-own-ai-build update`** downloads have a longer timeout.
 
 
 # 0.2.77 — 2026-06-30
 
 ## Features
 
-- **Pasting images** from the local clipboard now works when running commands through `grok wrap`.
+- **Pasting images** from the local clipboard now works when running commands through `your-own-ai-build wrap`.
 - **Turn status spinner** now shows what the agent is waiting on (response, subagent, task output, etc.).
 - **Double-click word selection** is now a discoverable option in the Text selection setting and stays in sync with highlight behavior.
 
@@ -586,14 +586,14 @@
 
 ## Bug Fixes
 
-- **Fixed `grok agent stdio` hangs** on Windows when used with persistent clients such as VS Code.
+- **Fixed `your-own-ai-build agent stdio` hangs** on Windows when used with persistent clients such as VS Code.
 
 
 # 0.2.70 — 2026-06-27
 
 ## Breaking Changes
 
-- **Added `grok wrap`** to run any command with local clipboard support.
+- **Added `your-own-ai-build wrap`** to run any command with local clipboard support.
 
 ## Features
 
@@ -603,7 +603,7 @@
 
 - **Session recaps** (/recap and return-from-away) now show the full summary instead of being cut off mid-sentence.
 - **Vim mode** now focuses the prompt when you press / on a brand-new empty session.
-- **Fixed `grok agent stdio` startup hangs** on Windows when used with persistent clients such as VS Code or grok-desktop.
+- **Fixed `your-own-ai-build agent stdio` startup hangs** on Windows when used with persistent clients such as VS Code or grok-desktop.
 - **`/mcps` list** no longer shows stale disabled entries when managed gateway tools are enabled.
 - **Mermaid diagrams opened via [Open Image]** now render at higher resolution instead of terminal size.
 - **Pressing `r` in scrollback** no longer accidentally rewinds the session.
@@ -814,8 +814,8 @@
 
 - Terminal command output files are now capped at 5 GB during execution and truncated to 64 MB after the process exits.
 - Interjection messages now display the actual user text instead of a generic header.
-- The legacy `agent` command is now kept in sync with `grok` after running `grok update`.
-- Headless (`grok -p`) runs now wait for background tasks and subagents to finish before exiting.
+- The legacy `agent` command is now kept in sync with `your-own-ai-build` after running `your-own-ai-build update`.
+- Headless (`your-own-ai-build -p`) runs now wait for background tasks and subagents to finish before exiting.
 
 
 # 0.2.57
@@ -823,7 +823,7 @@
 ## Features
 
 - Improved resilience to network blips during long responses by resuming instead of failing the turn.
-- **`grok plugin install <name>`** now resolves plugins from registered marketplaces instead of only local paths.
+- **`your-own-ai-build plugin install <name>`** now resolves plugins from registered marketplaces instead of only local paths.
 
 ## Bug Fixes
 
@@ -936,7 +936,7 @@
 - **ptyctl resize** now correctly notifies the child process.
 - **Concurrent updates** to the same version no longer fail with permission or EEXIST errors.
 - **Mermaid diagrams** containing CJK or other non-Latin text now render correctly instead of tofu boxes.
-- **`grok dashboard`** now reliably opens the dashboard instead of silently falling through to a normal session.
+- **`your-own-ai-build dashboard`** now reliably opens the dashboard instead of silently falling through to a normal session.
 - **Sessions** no longer remain blocked forever after a transient model catalog outage during reconnect.
 - **Cancel** no longer leaves the interface stuck on "Cancelling…" after lost responses during reconnects.
 - **Forked sessions** now retain the parent's full pre-compaction transcripts instead of only the compacted summary.
@@ -953,7 +953,7 @@
 
 ## Breaking Changes
 
-- **`grok mcp add`** now accepts positional arguments (e.g. `grok mcp add filesystem -- npx...`), supports --scope project, and adds -e/-H flags for env/headers.
+- **`your-own-ai-build mcp add`** now accepts positional arguments (e.g. `your-own-ai-build mcp add filesystem -- npx...`), supports --scope project, and adds -e/-H flags for env/headers.
 
 ## Features
 
@@ -966,13 +966,13 @@
 
 - **Plan mode exit reminders** no longer appear after the model has already started implementing the plan.
 - **Expanded thinking blocks** in scrollback now remain expanded when the agent finishes them.
-- **`grok update`** no longer downloads the same binary twice when multiple updaters or leader checks run concurrently.
+- **`your-own-ai-build update`** no longer downloads the same binary twice when multiple updaters or leader checks run concurrently.
 - **Background task IDs** after /compact are now shown verbatim so the model can reference them correctly in later tool calls.
 - **Typing /** while scrollback is focused now focuses the prompt and opens the slash-command dropdown.
 - **Dashboard empty state** is now a single hint line; dispatch and peek placeholders appear only when unfocused.
 - **Fixed memory leaks** that could cause the CLI to use tens of gigabytes during long sessions with many tool calls.
 - **Login on SSH or headless machines** now tells you when the browser cannot be opened automatically and shows the URL to visit manually.
-- **Fixed git clone failures** on Windows when the CLI tries to clone marketplace plugins into ~/.grok.
+- **Fixed git clone failures** on Windows when the CLI tries to clone marketplace plugins into ~/.your-own-ai-build.
 
 ## Performance
 
@@ -1032,7 +1032,7 @@
 
 ## Bug Fixes
 
-- **Fixed `grok --resume`** failing on empty image-only session folders left by cross-directory pastes.
+- **Fixed `your-own-ai-build --resume`** failing on empty image-only session folders left by cross-directory pastes.
 - **Fixed pasted images** and relative paths using the wrong directory after cross-cwd resume.
 - **Fixed Mermaid flowcharts** that silently rendered wrong diagrams for & groups, circle/cross endings and self-loops.
 - **Fixed zsh tab-completion** for subcommands after the optional prompt argument was added.
@@ -1053,7 +1053,7 @@
 ## Bug Fixes
 
 - **Fixed** rare conversation corruption when skills changed while a tool call was still running.
-- **Fixed** `grok --resume` failing on empty image-only session folders left by cross-directory pastes.
+- **Fixed** `your-own-ai-build --resume` failing on empty image-only session folders left by cross-directory pastes.
 - **Fixed** pasted images and relative paths using the wrong directory after resuming a session from another folder.
 - **Welcome screen logo** no longer renders as invalid characters on legacy Windows command prompts and PowerShell.
 - **Fixed** "unknown session id" errors that occurred after the leader process crashed or was killed.
@@ -1084,7 +1084,7 @@
 
 - **ask_user_question** tool can now be enabled in allowlists without requiring plan-mode tools.
 - **Shift+Tab** mode cycling (Normal → Plan → Auto-Approve) works again in the agent view.
-- **Ctrl+C** now cancels a blocking `grok update` cleanly instead of leaving an orphaned download repainting the terminal.
+- **Ctrl+C** now cancels a blocking `your-own-ai-build update` cleanly instead of leaving an orphaned download repainting the terminal.
 
 
 # 0.2.42
@@ -1115,7 +1115,7 @@
 
 ## Features
 
-- **`grok --debug`** now produces per-session log files under ~/.grok/debug/ even with a leader process.
+- **`your-own-ai-build --debug`** now produces per-session log files under ~/.your-own-ai-build/debug/ even with a leader process.
 
 ## Bug Fixes
 
@@ -1156,7 +1156,7 @@
 ## Features
 
 - **MCP tool result queries** now list only command-line tools actually present on your system.
-- **`grok update`** now restarts any older running leader so all clients get the new binary.
+- **`your-own-ai-build update`** now restarts any older running leader so all clients get the new binary.
 - **Long-running bash commands** that hit the timeout are now moved to the background by default instead of killed.
 
 ## Bug Fixes
@@ -1183,7 +1183,7 @@
 
 ## Features
 
-- **`grok login`** now defaults to device code flow, which works reliably in SSH, WSL, VPN, and browser-restricted environments.
+- **`your-own-ai-build login`** now defaults to device code flow, which works reliably in SSH, WSL, VPN, and browser-restricted environments.
 
 ## Bug Fixes
 
@@ -1272,7 +1272,7 @@
 ## Bug Fixes
 
 - **Large pasted content** no longer triggers context-window errors or breaks compaction and memory flush.
-- **API-key users** can now run `grok agent --leader` without forced interactive login or timeouts.
+- **API-key users** can now run `your-own-ai-build agent --leader` without forced interactive login or timeouts.
 - **Compaction** no longer retries endlessly on credit, size, or auth failures; shows a clear message instead.
 - **Windows PowerShell and cmd.exe** no longer falsely reject commands containing `&`.
 - **web_fetch** no longer crashes the CLI on pages whose root element matches a cleaning selector.
@@ -1535,7 +1535,7 @@
 
 ## Features
 
-- **Version output** now shows [alpha] or [stable] in `--version`, banners, `/session-info`, and `grok inspect`.
+- **Version output** now shows [alpha] or [stable] in `--version`, banners, `/session-info`, and `your-own-ai-build inspect`.
 - **New "always-approve"** option appears first in permission dialogs. Bash commands now resolve reliably on NixOS and Homebrew installs.
 
 ## Bug Fixes
@@ -1628,7 +1628,7 @@
 
 ## Features
 
-- **New `/export` slash command** and `grok export` CLI command let you save or copy conversation transcripts as Markdown.
+- **New `/export` slash command** and `your-own-ai-build export` CLI command let you save or copy conversation transcripts as Markdown.
 
 ## Bug Fixes
 
@@ -1640,7 +1640,7 @@
 
 ## Features
 
-- **New `grok plugin` commands** let you manage plugins and marketplaces directly from the terminal.
+- **New `your-own-ai-build plugin` commands** let you manage plugins and marketplaces directly from the terminal.
 
 ## Bug Fixes
 
@@ -1685,8 +1685,8 @@
 
 - **Todo list reminders** now appear at turn end when pending tasks remain after compaction.
 - **Laziness detection** can now be enabled per-model to automatically nudge idle agents.
-- **New `grok plugin` commands** let you manage plugins and marketplaces directly from the terminal.
-- New `/export` command and `grok export` let you save or copy conversation transcripts as Markdown.
+- **New `your-own-ai-build plugin` commands** let you manage plugins and marketplaces directly from the terminal.
+- New `/export` command and `your-own-ai-build export` let you save or copy conversation transcripts as Markdown.
 
 ## Bug Fixes
 
@@ -1770,7 +1770,7 @@
 - **New settings pane** lets users configure appearance, themes, and behavior directly in the terminal UI.
 - **New image_edit tool** supports reference-based editing using uploaded photos or data URLs.
 - **Goal mode** now surfaces verification-blocked pauses with human-readable reasons and resume guidance.
-- **Added `grok logout` subcommand** to sign out from the terminal without launching the TUI.
+- **Added `your-own-ai-build logout` subcommand** to sign out from the terminal without launching the TUI.
 - **Backend search** is now enabled by default for web_search and x_search.
 - **Added per-MCP-server `expose_image_base64` option** so raw image data remains available in tool output.
 - **Improved credit-limit experience** for max-tier users with an inline scrollback card instead of a modal.
@@ -1784,7 +1784,7 @@
 - **Doom-loop halts** now correctly report harness termination instead of misleading "user cancelled" messages.
 - **API-key users** no longer see unavailable models such as grok-build that 404 on selection.
 - **Image and video generation** now recover better from network issues and large response bodies.
-- **Improved error messages** when hitting a subscription wall with an API key set, suggesting `grok logout`.
+- **Improved error messages** when hitting a subscription wall with an API key set, suggesting `your-own-ai-build logout`.
 - **Removed --budget flag** from /goal and made goal verification stricter.
 - **Fixed a crash** on exit when using MCP servers that require token refresh.
 - **Fixed follow-up errors** after backend search and prevented unsupported tools from reaching certain models.
@@ -1890,7 +1890,7 @@
 - **Goal mode** now supports a "verification blocked" pause state with a user-visible reason.
 - **read_file** now extracts text from PowerPoint (.pptx) files in addition to PDF and images.
 - **Goal mode** verifiers now act as reviewers and subagent resumes use the latest ID.
-- **New `grok logout` command** clears your cached login session directly from the terminal.
+- **New `your-own-ai-build logout` command** clears your cached login session directly from the terminal.
 - **Web search and X search** now run server-side by default for improved results.
 - **MCP image tools** can now expose raw base64 data so agents can forward images via file tools.
 - **Max-tier users** now see an inline message with pay-as-you-go options when hitting credit limits.
@@ -1917,7 +1917,7 @@
 - **Fixed /btw** 400 errors on certain Anthropic models by cleaning up mid-turn tool state.
 - **API key users** no longer see unavailable models like grok-build in the model list.
 - **Image and video generation** now handles slow or interrupted network responses more reliably without generic decode errors.
-- **Fixed error messages** when hitting a subscription wall with an API key set, now suggesting `grok logout`.
+- **Fixed error messages** when hitting a subscription wall with an API key set, now suggesting `your-own-ai-build logout`.
 - **Fixed a crash** on exit when using MCP servers that require token refresh.
 - **Reduced 400 errors** on background flush/dream operations for thinking models.
 - **Fixed follow-up search errors** and ensured backend search only activates on supported models.
@@ -2064,7 +2064,7 @@
 - **Directly waited** background tasks no longer trigger extra notifications.
 - **Loop indicators** are now properly removed when subagents shut down.
 - **run_terminal_cmd** tool name restored; background parameter rename preserved.
-- **Model picker** now recovers automatically after sleep/resume or temporary network issues instead of staying stuck on Grok Build.
+- **Model picker** now recovers automatically after sleep/resume or temporary network issues instead of staying stuck on Your Own AI Build.
 - **MCP server connections** now succeed for servers that enforce audience binding on OAuth tokens.
 - **read_file** now accesses gitignored files by default (grep/list_dir/search_replace still block them unless configured).
 - **--no-ask-user** flag now correctly disables the ask_user_question tool in both TUI and headless modes.
@@ -2088,7 +2088,7 @@
 
 ## Bug Fixes
 
-- **`grok sessions search`** now finds local and remote sessions correctly, and **`grok -r <id>`** restores remote sessions reliably.
+- **`your-own-ai-build sessions search`** now finds local and remote sessions correctly, and **`your-own-ai-build -r <id>`** restores remote sessions reliably.
 
 
 # 0.1.210-alpha.3
@@ -2129,7 +2129,7 @@
 - **Windows file saves** now retry brief editor or AV locks automatically.
 - **Completed background tasks** now remain queryable via get_task_output.
 - **Fixed terminal garbage** during auto-updates on macOS.
-- **`grok sessions search`** now finds local and remote sessions correctly, and **`grok -r <id>`** restores remote sessions reliably.
+- **`your-own-ai-build sessions search`** now finds local and remote sessions correctly, and **`your-own-ai-build -r <id>`** restores remote sessions reliably.
 - **Login timeout** increased to 10 minutes with clearer error message.
 - **Fixed pager getting stuck in plan mode** due to tool titles mentioning plan commands.
 
@@ -2279,10 +2279,10 @@
 - **Remote tools** from hub-registered workspace servers are now discoverable and callable in sessions.
 - **Worktree folders** now use readable names like 'projects-my-repo' instead of session IDs.
 - **Session lists** now show AI-generated titles, git branches, repo names, and worktree labels.
-- **`grok -w my-worktree`** creates a custom-named worktree folder.
+- **`your-own-ai-build -w my-worktree`** creates a custom-named worktree folder.
 - **Session picker** now groups entries by repository with headers and indents.
 - **Remote workspaces** now handle multiple sessions over one connection.
-- **`/usage manage`** now opens billing page; **`grok login`** enforces tiers correctly after refresh.
+- **`/usage manage`** now opens billing page; **`your-own-ai-build login`** enforces tiers correctly after refresh.
 
 ## Bug Fixes
 
@@ -2305,7 +2305,7 @@
 
 ## Bug Fixes
 
-- **Legacy web login** no longer treated as first-party xAI account for sharing and billing; prompts **`grok login`** upgrade.
+- **Legacy web login** no longer treated as first-party xAI account for sharing and billing; prompts **`your-own-ai-build login`** upgrade.
 - **Billing display** now includes pay-as-you-go status and monthly limits with better error handling.
 - **Copy auth URLs** now works in Docker containers and displays cleanly for external providers.
 
@@ -2318,7 +2318,7 @@
 
 ## Breaking Changes
 
-- **Legacy authentication** removed; run **`grok login`** to upgrade to OAuth.
+- **Legacy authentication** removed; run **`your-own-ai-build login`** to upgrade to OAuth.
 
 ## Features
 
@@ -2332,7 +2332,7 @@
 
 ## Bug Fixes
 
-- **Legacy web login** no longer treated as premium xAI account; run **`grok login`** instead.
+- **Legacy web login** no longer treated as premium xAI account; run **`your-own-ai-build login`** instead.
 - **Session picker** removes duplicate blank sessions from same folder.
 - **Sessions from deleted worktrees** still appear in picker after restart.
 - **Credit bar** now shows pay-as-you-go status and monthly usage limits.
@@ -2366,7 +2366,7 @@
 - **Plan review overlay** now always shown, even in always-approve mode.
 - **Fixed empty model list** and unknown model after login or logout.
 - **Fixed unwanted login prompts** during brief network issues at startup.
-- **Fixed `grok sessions list`** auth failures.
+- **Fixed `your-own-ai-build sessions list`** auth failures.
 
 
 # 0.1.203
@@ -2381,7 +2381,7 @@
 - **Resumed sessions** no longer duplicate MCP server and skill reminders.
 - **Plan mode exits** now always show interactive approval, even in always-approve mode.
 - **Model picker** now updates correctly after login/logout without empty lists or 'unknown'.
-- **`grok sessions list`** now works reliably after login.
+- **`your-own-ai-build sessions list`** now works reliably after login.
 - **`/btw` slash command** now supports all backends like Anthropic Messages API.
 
 
@@ -2550,7 +2550,7 @@
 
 ## Features
 
-- **New `grok import`** resumes Claude Code sessions with `grok import <id/path>`.
+- **New `your-own-ai-build import`** resumes Claude Code sessions with `your-own-ai-build import <id/path>`.
 - **New `grok-build-orchestrator`** coordinates subagents for complex builds.
 - **`/skills` panel** now includes **toggles** to enable or disable individual skills.
 
@@ -2563,7 +2563,7 @@
 - **Subagents** now execute tools in the **specified working directory** instead of always using the parent's.
 - **Generated session titles** now display correctly in `/sessions` list and terminal.
 - **Fixed shell detection on Windows** for interactive PTYs, command syntax, and git editors.
-- **Fixed `grok share`** failing with backend ZodError due to duplicate request headers.
+- **Fixed `your-own-ai-build share`** failing with backend ZodError due to duplicate request headers.
 
 ## Performance
 
@@ -2574,7 +2574,7 @@
 
 ## Features
 
-- **New `grok login --devbox`** option for signing in from headless devbox environments without browser access.
+- **New `your-own-ai-build login --devbox`** option for signing in from headless devbox environments without browser access.
 - **Skill file reads** now display as **'Skill {name}'** for cleaner scrollback view.
 
 
@@ -2583,7 +2583,7 @@
 ## Features
 
 - **Billing credits and usage** now fetchable for display in pager/desktop.
-- **New `grok mcp doctor`** diagnoses MCP servers and suggests fixes.
+- **New `your-own-ai-build mcp doctor`** diagnoses MCP servers and suggests fixes.
 - **Session picker** now shows precise last activity times.
 
 ## Bug Fixes
@@ -2615,7 +2615,7 @@
 
 ## Features
 
-- **New `grok mcp doctor`** diagnoses MCP server configuration and connectivity.
+- **New `your-own-ai-build mcp doctor`** diagnoses MCP server configuration and connectivity.
 - **Subagents** can now target specific directories without new worktrees.
 - **Session picker** now shows accurate last activity times.
 
@@ -2649,7 +2649,7 @@
 
 ## Bug Fixes
 
-- **`grok models`** and TUI picker now show team-specific models when **`GROK_CODE_XAI_API_KEY`** is set.
+- **`your-own-ai-build models`** and TUI picker now show team-specific models when **`GROK_CODE_XAI_API_KEY`** is set.
 
 
 # 0.1.193-alpha.4
@@ -2685,7 +2685,7 @@
 
 - **Image compression** now skips small files and warns if large images can't be resized under 3.75 MB limit.
 - **Feedback errors** now appear in the session instead of failing silently.
-- **Clearer login error messages** now suggest `grok login`, API key env var, or config.toml.
+- **Clearer login error messages** now suggest `your-own-ai-build login`, API key env var, or config.toml.
 
 
 # 0.1.193
@@ -2700,7 +2700,7 @@
 ## Bug Fixes
 
 - **Large images** (>3.75MB after decoding) now compress to JPEG efficiently, keeping originals if needed.
-- **Authentication errors** now clearly suggest `grok login`, env var, or config.toml api_key.
+- **Authentication errors** now clearly suggest `your-own-ai-build login`, env var, or config.toml api_key.
 - **Fixed false-positive loop warnings** for different shell commands during edit-test cycles.
 - **Configured MCP servers** now appear reliably in the initial session prompt.
 
@@ -2747,7 +2747,7 @@
 ## Features
 
 - **Import Claude settings** from `.claude/` into `.grok/config.toml` via welcome screen ('i') or `/import-claude`.
-- **Skills reload automatically** when editing/saving SKILL.md files without restarting `grok`.
+- **Skills reload automatically** when editing/saving SKILL.md files without restarting `your-own-ai-build`.
 
 ## Bug Fixes
 
@@ -2792,7 +2792,7 @@
 
 ## Features
 
-- **Improved `grok login`** with automatic code delivery from browser consent page.
+- **Improved `your-own-ai-build login`** with automatic code delivery from browser consent page.
 
 ## Bug Fixes
 
@@ -2936,7 +2936,7 @@
 
 ## Features
 
-- **New `grok trace`** command uploads or exports session data for debugging.
+- **New `your-own-ai-build trace`** command uploads or exports session data for debugging.
 - **Slash command arguments** now support fuzzy autocompletion with Tab.
 
 
@@ -2944,7 +2944,7 @@
 
 ## Features
 
-- **New `grok trace`** command exports or uploads session data for debugging.
+- **New `your-own-ai-build trace`** command exports or uploads session data for debugging.
 
 
 # 0.1.182-alpha.4
@@ -2959,7 +2959,7 @@
 
 ## Features
 
-- **`grok models`** now lists available models and the default.
+- **`your-own-ai-build models`** now lists available models and the default.
 - **Permission prompts** improved with numeric shortcuts and scope selector.
 
 ## Bug Fixes
@@ -2977,7 +2977,7 @@
 
 ## Features
 
-- **`grok models`** command now lists available models and authentication status.
+- **`your-own-ai-build models`** command now lists available models and authentication status.
 - **Permission prompts** now use numeric shortcuts, scope selector, and syntax highlighting.
 
 ## Bug Fixes
@@ -3000,7 +3000,7 @@
 
 ## Features
 
-- **X Premium and Premium+** tiers now grant access to Grok Build.
+- **X Premium and Premium+** tiers now grant access to Your Own AI Build.
 
 ## Bug Fixes
 
@@ -3124,7 +3124,7 @@
 
 ## Features
 
-- **`grok sessions search`** now finds sessions by content with scores and snippets.
+- **`your-own-ai-build sessions search`** now finds sessions by content with scores and snippets.
 - **Session picker** now combines fuzzy matches with deep content search.
 
 ## Bug Fixes
@@ -3137,9 +3137,9 @@
 
 ## Features
 
-- **`grok sessions search`** now supports **full-text queries** across chat content and tools.
+- **`your-own-ai-build sessions search`** now supports **full-text queries** across chat content and tools.
 - **Session picker** now combines fuzzy matching with **deep content search** results.
-- **Unified logs** now saved to `~/.grok/logs/unified.jsonl` with **Download Logs** in desktop.
+- **Unified logs** now saved to `~/.your-own-ai-build/logs/unified.jsonl` with **Download Logs** in desktop.
 
 ## Bug Fixes
 
@@ -3188,7 +3188,7 @@
 ## Bug Fixes
 
 - **Auto-update restart** now launches the correct new version.
-- **Auth.json hot-reload** fixed for `grok login` in other terminals.
+- **Auth.json hot-reload** fixed for `your-own-ai-build login` in other terminals.
 
 ## Performance
 
@@ -3205,7 +3205,7 @@
 ## Bug Fixes
 
 - **Auto-update restart** now launches the correct new version.
-- **Auth.json hot-reload** now detects `grok login` from other terminals.
+- **Auth.json hot-reload** now detects `your-own-ai-build login` from other terminals.
 - **API error messages** no longer include request body for privacy.
 - **Status bar counting fixed**, **diff indentation preserved**, and **bash timeout** increased to 10 hours.
 - **Rate limit errors** now show friendly messages with **upgrade instructions**.
@@ -3233,7 +3233,7 @@
 ## Bug Fixes
 
 - **Auto-update restart** now launches the correct new version.
-- **Auth.json hot-reload** fixed for `grok login` in other terminals.
+- **Auth.json hot-reload** fixed for `your-own-ai-build login` in other terminals.
 - **Fixed status bar counting**, **diff indentation**, and **increased bash timeout** to 10 hours.
 - **Rate limit errors** now show friendly messages with **upgrade instructions**.
 
@@ -3256,7 +3256,7 @@
 ## Bug Fixes
 
 - **Auto-update restart** now launches correct new version via symlink.
-- **External `grok login`** now hot-reloads auth without app restart.
+- **External `your-own-ai-build login`** now hot-reloads auth without app restart.
 - **Fixed hangs** from broken streaming responses.
 - **Stale background tasks** now marked complete on session reload.
 - **MCP servers** loaded from `~/.claude.json` and `.mcp.json` files.
@@ -3294,7 +3294,7 @@
 ## Bug Fixes
 
 - **Auto-updates** now restart with the correct new version.
-- **Auth.json hot-reload** fixed for `grok login` in other terminals.
+- **Auth.json hot-reload** fixed for `your-own-ai-build login` in other terminals.
 
 ## Performance
 
@@ -3310,7 +3310,7 @@
 ## Bug Fixes
 
 - **Auto-updates** now restart with the correct new version displayed.
-- **External `grok login`** now hot-reloads auth without restarting.
+- **External `your-own-ai-build login`** now hot-reloads auth without restarting.
 
 ## Performance
 
@@ -3335,7 +3335,7 @@
 
 ## Features
 
-- **New `grok ssh`** command enables clipboard copy from remote sessions in Apple Terminal.
+- **New `your-own-ai-build ssh`** command enables clipboard copy from remote sessions in Apple Terminal.
 
 
 # 0.1.171-alpha.2
@@ -3352,7 +3352,7 @@
 
 ## Features
 
-- **`grok login --device-auth`** enables login from SSH, Docker, and other headless environments without port forwarding.
+- **`your-own-ai-build login --device-auth`** enables login from SSH, Docker, and other headless environments without port forwarding.
 - **Skills tab** added to the hooks/plugins modal.
 - **Permission rules** now support path globs like `Edit(src/**/*.rs)` and recursive `**` patterns.
 - **Slash command dropdown** widened to show plugin names.
@@ -3384,7 +3384,7 @@
 
 ## Features
 
-- **`grok login --device-auth`** enables login from SSH, Docker, and other headless environments without port forwarding.
+- **`your-own-ai-build login --device-auth`** enables login from SSH, Docker, and other headless environments without port forwarding.
 - **Skills tab** added to the hooks/plugins modal.
 - **Permission rules** now support path globs like `Edit(src/**/*.rs)` and recursive `**` patterns.
 - **Slash command dropdown** widened to show plugin names.
@@ -3413,7 +3413,7 @@
 
 ## Features
 
-- **Added** `grok login --device-auth` **flag** for headless environments like SSH and Docker.
+- **Added** `your-own-ai-build login --device-auth` **flag** for headless environments like SSH and Docker.
 
 
 # 0.1.169
@@ -3462,11 +3462,11 @@
 - **Startup announcements** emits x.ai/announcements/refreshed ACP notification on agent init.
 - **Auto-enroll updates** defaults to enabling automatic updates without interactive prompt.
 - **Subagent visualizations** in pager now show persona, role, and model metadata.
-- **Bundled agents** discovered from ~/.grok/bundled/agents/ with lowest precedence after project/user/built-in.
+- **Bundled agents** discovered from ~/.your-own-ai-build/bundled/agents/ with lowest precedence after project/user/built-in.
 - **Pager welcome screen** displays rotated tip-of-the-day from RemoteSettings honoring config and env overrides.
 - **image_gen/video_gen tools** instruct model to display generated media inline via markdown.
 - **Project plugins** default disabled with enable via [plugins].enabled and added counts for UI.
-- **Enterprise managed configs** via ~/.grok/managed_config.toml/requirements.toml with `grok inspect` and `grok setup`.
+- **Enterprise managed configs** via ~/.your-own-ai-build/managed_config.toml/requirements.toml with `your-own-ai-build inspect` and `your-own-ai-build setup`.
 - **web_fetch tool** enabled via [features] web_fetch in config.toml alongside env/remote settings.
 - **grok login defaults to OAuth** instead of legacy relay; use --legacy or GROK_OAUTH_ENABLED=0 for old behavior.
 - **Clipboard copy over SSH/tmux** now reaches local terminal via OSC 52 alongside native clipboard writes.
@@ -3526,7 +3526,7 @@
 
 ## Features
 
-- **Per-hook enable/disable toggles** via ~/.grok/disabled-hooks file and 'e' key with **multi-line j/k navigation fix**.
+- **Per-hook enable/disable toggles** via ~/.your-own-ai-build/disabled-hooks file and 'e' key with **multi-line j/k navigation fix**.
 - **Bash-mode execute blocks auto-expand** after completion to display output immediately.
 - **Video generation tool** supports xAI API with async polling, download and sequential MP4 naming.
 - **Marketplace plugin installs** route through git_install with provenance tracking.
@@ -3581,7 +3581,7 @@
 - **GrokNight default theme** with **runtime color quantization** ensures correct rendering across truecolor, 256-color, and 16-color terminals.
 - **ACP endpoints for hooks/plugins listing** enable pager modals to display loaded hooks and discovered plugins.
 - **ACP action endpoints** for hooks/plugins management support trust, install, reload, and update operations via pager.
-- **Legacy relay auth flow** via `grok login --legacy` restores pre-OIDC accounts.x.ai token exchange.
+- **Legacy relay auth flow** via `your-own-ai-build login --legacy` restores pre-OIDC accounts.x.ai token exchange.
 
 ## Bug Fixes
 
@@ -3600,7 +3600,7 @@
 
 ## Breaking Changes
 
-- **OIDC OAuth replaces relay auth**; removed `--auth-signin-url`/`exchange-code-url`/`redirect-target` flags, run `grok login` to migrate.
+- **OIDC OAuth replaces relay auth**; removed `--auth-signin-url`/`exchange-code-url`/`redirect-target` flags, run `your-own-ai-build login` to migrate.
 
 ## Features
 
@@ -3628,7 +3628,7 @@
 
 ## Features
 
-- **Configurable permission policies** enable automatic allow/deny rules via ~/.grok/config.toml before existing checks.
+- **Configurable permission policies** enable automatic allow/deny rules via ~/.your-own-ai-build/config.toml before existing checks.
 - **Prevents timeout doom loops** by auto-backgrounding foreground commands exceeding default 120s without explicit timeout.
 - **ACP git extensions** enable desktop git info/branches/checkout without local shelling, supporting cloud workspaces.
 - **Richer hook annotations** add HTTP URL/status/response previews to scrollback for pre-tool-use summaries.
@@ -3660,8 +3660,8 @@
 
 ## Breaking Changes
 
-- **OIDC OAuth2 replaces legacy relay login** for `grok login`; add `--legacy` flag for old flow and remove `--auth-signin-url` etc. CLI flags (migrate by deleting auth.json).
-- **Adds `grok login --legacy`** fallback; removes `--auth-signin-url` etc flags (use env/config defaults, no migration needed for most users).
+- **OIDC OAuth2 replaces legacy relay login** for `your-own-ai-build login`; add `--legacy` flag for old flow and remove `--auth-signin-url` etc. CLI flags (migrate by deleting auth.json).
+- **Adds `your-own-ai-build login --legacy`** fallback; removes `--auth-signin-url` etc flags (use env/config defaults, no migration needed for most users).
 
 ## Features
 
@@ -3792,7 +3792,7 @@
 - **Claude frontmatter parity** parses allowed-tools lists/strings, model, and effort in skill frontmatter.
 - **Auto-injected managed MCPs** from grok.com for WebLogin, deduped with config.toml opt-out.
 - **ACP worktree management** adds list/show/gc/db methods with filters and dry-run.
-- **ACP x.ai/auth/logout** removes scopes from ~/.grok/auth.json.
+- **ACP x.ai/auth/logout** removes scopes from ~/.your-own-ai-build/auth.json.
 - **Custom npm registry** via config.toml or GROK_NPM_REGISTRY respects enterprise.npmrc.
 - **CLI worktree commands use ACP** with repo-wide session resolution for -w -r.
 - **Repo-wide worktree session resume** resolves locally across same-repo directories via ACP before remote fallback.
@@ -3822,7 +3822,7 @@
 
 - **Subagent worktrees preserved** after completion with path in output; role-level fork and isolation defaults added.
 - **Always-approve mode** renames yolo flag/slash command with backward-compatible aliases preserved.
-- **Help skill reads ~/.grok/config.toml** to answer MCP server and model configuration queries.
+- **Help skill reads ~/.your-own-ai-build/config.toml** to answer MCP server and model configuration queries.
 - **Deployment keys supported** on all API proxy endpoints including storage and sessions.
 - **Public install-grok.sh script** supports deployment keys and channels without VPN.
 - **Subagent prompts** use dedicated compact template with system role/persona.
@@ -3861,7 +3861,7 @@
 - **Structured subagent details and lineage** render diagnostics below selected TUI tasks rows.
 - **TUI /plugins commands** support live reload, qualified autocomplete, and plugin source display.
 - **Subagent safety guards** fallback to parent model on unknown config or fork context overflow.
-- **Bundled /help skill** extracts README.md to ~/.grok/ for slash command and model self-help.
+- **Bundled /help skill** extracts README.md to ~/.your-own-ai-build/ for slash command and model self-help.
 - **Identifies worktree sessions** in client sidebars via session_kind and source_workspace_dir metadata in summary.json.
 
 ## Bug Fixes
@@ -3930,7 +3930,7 @@
 - **Plugin install/uninstall commands** support git repos, tags, subdirs, local paths.
 - **Auto-injects managed MCPs** from grok.com into CLI/TUI for WebLogin users.
 - **ACP worktree management** adds list/show/gc/db methods with filters and dry-run.
-- **ACP logout method** removes scopes from ~/.grok/auth.json.
+- **ACP logout method** removes scopes from ~/.your-own-ai-build/auth.json.
 - **Discovers skills from.claude/skills** alongside.grok/skills across local, repo, and user directories.
 - **Inline TUI scrollback annotations** for hooks with ✓ success indicator and hashline_* Claude aliases.
 - **New hook events** Stop/Notification/UserPromptSubmit/SubagentStart/Stop with Claude-compatible PreToolUse schema.
@@ -4139,7 +4139,7 @@
 ## Features
 
 - **Remote announcements** surfaced from remote settings with tolerant parsing, periodic refresh, expiry filtering, and persistent hide/show state.
-- **`grok completions` subcommand** generates bash/zsh completion scripts, with fast-path exit before any network or auth warmup.
+- **`your-own-ai-build completions` subcommand** generates bash/zsh completion scripts, with fast-path exit before any network or auth warmup.
 - **Running subagents preserved after compaction** with IDs, types, and descriptions injected into the post-compaction system reminder.
 - **External auth provider** delegates login to a user-supplied binary for sandboxed VMs, CI, and air-gapped environments with automatic mid-session token refresh.
 - **Unicode confusable resilience** across search_replace, read_file, and doom-loop paths — smart quotes and em-dashes no longer cause silent edit failures.
@@ -4171,7 +4171,7 @@
 - **Non-git-repo startup warning** with blocking quit/continue prompt, gated behind a server-side feature flag.
 - **Line-numbered memory_get output** matching read_file format, with config-backed search defaults from `[memory.search]`.
 - **Richer session auto-save** captures tool-usage breakdown and file paths touched; shell commands excluded to avoid persisting secrets.
-- **`grok memory reindex` and `doctor` CLI commands** for index maintenance, plus access-frequency boost in hybrid search.
+- **`your-own-ai-build memory reindex` and `doctor` CLI commands** for index maintenance, plus access-frequency boost in hybrid search.
 - **Cursor-based session reconnect** skips already-seen replay events, forwarding only post-cursor updates as live.
 - **Subagent support in web UI** with clickable session cards, persistent spawn/finish notifications, and structured completion output.
 - **Session restore progress tracking** with phase-level events, elapsed timers, and explicit incomplete-vs-complete outcome differentiation.
@@ -4187,10 +4187,10 @@
 
 - **Doom-loop detection hardened** with whitespace-normalized fingerprints, per-file failure tracking, nearest-match hints, and outcome-aware error streaks.
 - **Restore no longer overwrites git identity** — synthetic commits use scoped env vars instead of writing to repo-local git config.
-- **Session token routing fixed** for default models — `grok login` users no longer get 400 errors on proxy-routed models.
+- **Session token routing fixed** for default models — `your-own-ai-build login` users no longer get 400 errors on proxy-routed models.
 - **Richer API error diagnostics** with redacted headers, request body previews, and response metadata in failure messages.
 - **Worktree list preserves full IDs** by computing dynamic column width instead of truncating to 16 characters.
-- **Restored remote sessions create distinct local children** with parent tracking, preventing identity reuse and duplicate restores on repeated `grok -r`.
+- **Restored remote sessions create distinct local children** with parent tracking, preventing identity reuse and duplicate restores on repeated `your-own-ai-build -r`.
 - **Auto A/B testing works on non-macOS** by treating absent worktree pool as passthrough instead of gate.
 - **Worktree ID collision eliminated** by switching from time-based UUID v7 prefix to random UUID v4.
 - **Cancelled and restored sessions no longer hang** by sending explicit shutdown commands before dropping session handles.
@@ -4288,7 +4288,7 @@
 ## Features
 
 - **Remote announcements** from remote settings with tolerant deserializer.
-- **Shell completions** via `grok completions <shell>`, leader CLI, and stdio reconnect replay.
+- **Shell completions** via `your-own-ai-build completions <shell>`, leader CLI, and stdio reconnect replay.
 - **User-defined subagents** via.grok/agents/*.md with config toggles.
 - **Post-compaction reminder includes running subagents** with IDs, types, and poll/cancel instructions.
 - **External auth provider binary** enables login via custom commands in sandboxed/air-gapped environments.
@@ -4309,9 +4309,9 @@
 - **Auto-installs grok-pager** alongside grok during internal and GitHub release updates.
 - **Mid-session token refresh** via OIDC grants or external auth binaries prevents expiry.
 - **Hashline toolset** enables anchor-stable file read/edit/grep with validation, recovery, ranges, and config integration.
-- **Hooks system** executes custom scripts for pre/post-tool and session events from ~/.grok/hooks/ with deny-wins trust controls.
+- **Hooks system** executes custom scripts for pre/post-tool and session events from ~/.your-own-ai-build/hooks/ with deny-wins trust controls.
 - **Independent feedback flag** gates /feedback and popups separately from telemetry via GROK_FEEDBACK_ENABLED.
-- **Leader CLI** adds `grok leader list/info/profile/kill/dev` for discovery and CPU profiling.
+- **Leader CLI** adds `your-own-ai-build leader list/info/profile/kill/dev` for discovery and CPU profiling.
 - **Plan mode state machine** enables agent planning phase with enter/exit tools and session persistence.
 - **Hooks from Claude settings** loads from `~/.claude/settings.json` and project `.claude/settings.json`.
 - **Live subagent progress** shows turns, tools, tokens, errors in `get_task_output` for running tasks.
@@ -4319,7 +4319,7 @@
 - **ACP `x.ai/subagent/list_running`** queries live progress for all running subagents of parent session.
 - **Bash tool params from config.toml** override schema defaults like `timeout_secs` for GrokBuild.
 - **Live subagent progress** in TUI tasks panel via ACP polling and push notifications.
-- **ACP extension resumes sessions in worktrees** via single call matching `grok -w -r` CLI flow.
+- **ACP extension resumes sessions in worktrees** via single call matching `your-own-ai-build -w -r` CLI flow.
 - **Signed GCS uploads for shares** bypass proxy limits to prevent 413 errors on large sessions.
 
 ## Bug Fixes
@@ -4402,7 +4402,7 @@
 - **Non-git directory warning** with blocking confirmation modal at startup, gated behind a server-side feature flag.
 - **Line-numbered `memory_get` output** matching `read_file` format, with `memory_search` defaults now respecting `[memory.search]` config.
 - **Richer session-end auto-saves** now include tool-usage breakdown and file paths touched; shell commands excluded to prevent credential leakage.
-- **`grok memory reindex` and `doctor` CLI commands** for index maintenance, plus access-frequency boosting for retrieved memory chunks.
+- **`your-own-ai-build memory reindex` and `doctor` CLI commands** for index maintenance, plus access-frequency boosting for retrieved memory chunks.
 
 ## Bug Fixes
 
@@ -4427,7 +4427,7 @@
 ## Features
 
 - **Per-session tip rotation** via a persistent cursor so each launch shows the next tip in sequence instead of the same UTC-day tip.
-- **Cross-devbox session restore** via `grok sessions list/search` CLI subcommands and hardened `grok -r` with upload-ordering safety, cwd-scoped lookups, and staged-vs-unstaged correctness.
+- **Cross-devbox session restore** via `your-own-ai-build sessions list/search` CLI subcommands and hardened `your-own-ai-build -r` with upload-ordering safety, cwd-scoped lookups, and staged-vs-unstaged correctness.
 
 ## Bug Fixes
 
@@ -4608,7 +4608,7 @@
 ## Bug Fixes
 
 - **Auto A/B comparisons deferred until worktree pool is ready**, preventing 30-60s stall on large repos.
-- **Headless mode (`grok -p`) exit panic** fixed by flushing telemetry before runtime teardown.
+- **Headless mode (`your-own-ai-build -p`) exit panic** fixed by flushing telemetry before runtime teardown.
 
 
 # 0.1.154-alpha.3
@@ -4622,7 +4622,7 @@
 - **PTY notifications reach the correct client** via _meta routing metadata, with shared helpers and session-aware cwd fallback.
 - **Concurrent tool calls no longer crash** the tools server; semaphore serializes access to the thread-local toolset.
 - **Cross-session notification leaks eliminated** in leader mode for relay, dead-client, and ext/notification routing paths.
-- **Leader auto-update pre-downloads the binary** before shutdown and resolves the ~/.grok/bin symlink at spawn time.
+- **Leader auto-update pre-downloads the binary** before shutdown and resolves the ~/.your-own-ai-build/bin symlink at spawn time.
 - **First-compaction memory flush fires correctly** by pre-incrementing the compaction counter before the flush guard.
 - **Interval memory flush resumes after compaction** by resetting the conversation length counter when history is compacted.
 - **Session content restored on TUI reconnect** by clearing stale scrollback, resetting turn state, and gating live updates during replay.
@@ -4648,7 +4648,7 @@
 - **Mid-session MCP server toggling** via x.ai/session/update_mcp_servers extension method with optimistic rollback.
 - **Sandbox profile configurable via GROK_SANDBOX env variable**, defaulting to workspace profile on devboxes.
 - **Agent version exposed in InitializeResponse** metadata for relay and client version discovery.
-- **`grok worktree` subcommand** for listing, inspecting, removing, and garbage-collecting session worktrees.
+- **`your-own-ai-build worktree` subcommand** for listing, inspecting, removing, and garbage-collecting session worktrees.
 - **Character-budget BFS directory listing** replaces depth-based summarization, expanding small deep directories when budget allows.
 
 ## Bug Fixes
@@ -4785,7 +4785,7 @@
 
 ## Features
 
-- **Prompt introspection from the CLI** is available via `grok prompt`, with JSON or section output and persisted session prompt_context snapshots.
+- **Prompt introspection from the CLI** is available via `your-own-ai-build prompt`, with JSON or section output and persisted session prompt_context snapshots.
 - **Prompt image tracing** now captures user-supplied images as decoded per-turn files in GCS, improving multimodal debugging and auditability.
 - **A/B comparisons now support ask/plan read-only mode** by forking sessions without git worktrees, enabling comparisons outside repositories with safer non-mutating defaults.
 - **Per-server MCP timeouts** can be set via `_meta.mcpConfig`, with relay passthrough and precedence over config defaults during server startup and tool calls.
@@ -4798,7 +4798,7 @@
 - **Accurate prompt re-rendering** now respects active tool overrides and disabled tools by centralizing all prompt assembly through a shared PromptContext.
 - **A/B cancellation no longer double-finishes comparisons** by suppressing completion notifications and after-uploads when cancel handlers already removed active comparison state.
 - **Running outside git repos no longer panics** by skipping gitignore construction without a repo root and guarding absolute-path ignore checks.
-- **npm installs now use a canonical Grok binary path** via postinstall copy to `~/.grok/bin/grok`, preventing installer conflicts and version confusion.
+- **npm installs now use a canonical Grok binary path** via postinstall copy to `~/.your-own-ai-build/bin/grok`, preventing installer conflicts and version confusion.
 
 
 # 0.1.142
