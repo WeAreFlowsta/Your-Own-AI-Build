@@ -5,13 +5,13 @@
 //! ".claude", ".cursor"]` (and `RULES_DIRS` / `AGENT_FILENAMES`) across ~6
 //! call sites in three crates. This module now owns the canonical cell registry
 //! used by runtime resolution and diagnostics (env var → config TOML → remote
-//! setting → default ON).
+//! setting → default OFF: external-tool discovery is opt-in in this build).
 //!
 //! Two forms:
 //! - [`CompatConfigToml`] — raw, parsed from the `[compat]` TOML section. Each
 //!   cell is `Option<bool>` so `None` falls through to the resolution chain.
 //! - [`CompatConfig`] — resolved plain bools consumed at runtime. Every cell
-//!   defaults on.
+//!   defaults off (opt-in).
 
 use serde::{Deserialize, Serialize};
 
@@ -236,7 +236,7 @@ pub const COMPAT_CELLS: [CompatCell; 18] = [
 
 /// Raw per-vendor compat cells parsed from `[compat.<vendor>]` TOML.
 ///
-/// Resolution order is env override, this value, remote flag, default ON.
+/// Resolution order is env override, this value, remote flag, default OFF.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct VendorCompatToml {
     pub skills: Option<bool>,
@@ -317,22 +317,24 @@ impl VendorCompat {
 }
 
 impl Default for VendorCompat {
+    // Scanning other tools' config trees is opt-in: enable per cell via the
+    // `[compat]` TOML section or the cell's env var.
     fn default() -> Self {
         Self {
-            skills: true,
-            rules: true,
-            agents: true,
-            mcps: true,
-            hooks: true,
-            sessions: true,
+            skills: false,
+            rules: false,
+            agents: false,
+            mcps: false,
+            hooks: false,
+            sessions: false,
         }
     }
 }
 
 /// Resolved `[compat]` configuration threaded into compatibility consumers.
 ///
-/// Every cell defaults on. Codex's non-session cells are reserved and are not
-/// consumed by discovery.
+/// Every cell defaults off (external-tool discovery is opt-in). Codex's
+/// non-session cells are reserved and are not consumed by discovery.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct CompatConfig {
     pub cursor: VendorCompat,
@@ -365,7 +367,7 @@ impl CompatConfig {
     /// in `collect_skill_config_dirs`. When all cells are on, the returned
     /// list is identical to the historical constant.
     pub fn skill_config_dirs(&self) -> Vec<&'static str> {
-        let mut dirs = vec![".grok", ".agents"];
+        let mut dirs = vec![".your-own-ai-build", ".grok", ".agents"];
         if self.claude.skills {
             dirs.push(".claude");
         }
@@ -382,7 +384,7 @@ impl CompatConfig {
     /// Replaces the hard-coded `RULES_DIRS` constant. When all cells are on,
     /// the returned list is identical.
     pub fn rules_dirs(&self) -> Vec<&'static str> {
-        let mut dirs = vec![".grok/rules"];
+        let mut dirs = vec![".your-own-ai-build/rules", ".grok/rules"];
         if self.claude.rules {
             dirs.push(".claude/rules");
         }
@@ -436,6 +438,22 @@ impl CompatConfig {
 mod tests {
     use super::*;
 
+    fn all_on() -> CompatConfig {
+        let on = VendorCompat {
+            skills: true,
+            rules: true,
+            agents: true,
+            mcps: true,
+            hooks: true,
+            sessions: true,
+        };
+        CompatConfig {
+            cursor: on,
+            claude: on,
+            codex: on,
+        }
+    }
+
     #[test]
     fn registry_and_defaults_cover_every_cell() {
         use CompatRemoteKey::*;
@@ -473,16 +491,20 @@ mod tests {
         let defaults = CompatConfig::default();
         for cell in COMPAT_CELLS {
             assert!(
-                defaults.value(cell),
-                "{}.{}",
+                !defaults.value(cell),
+                "external-tool discovery must default off: {}.{}",
                 cell.vendor().as_str(),
                 cell.surface().as_str()
             );
         }
         for vendor in [defaults.cursor, defaults.claude, defaults.codex] {
-            assert!(vendor.skills && vendor.rules && vendor.agents);
-            assert!(vendor.mcps && vendor.hooks);
-            assert!(vendor.sessions);
+            assert!(!(vendor.skills || vendor.rules || vendor.agents));
+            assert!(!(vendor.mcps || vendor.hooks));
+            assert!(!vendor.sessions);
+        }
+        let on = all_on();
+        for cell in COMPAT_CELLS {
+            assert!(on.value(cell));
         }
 
         assert_eq!(
@@ -513,49 +535,58 @@ mod tests {
     fn skill_config_dirs_all_on_matches_legacy_constant() {
         // Historical constant was `[".grok", ".agents", ".claude", ".cursor"]`.
         assert_eq!(
-            CompatConfig::default().skill_config_dirs(),
-            vec![".grok", ".agents", ".claude", ".cursor"]
+            all_on().skill_config_dirs(),
+            vec![".your-own-ai-build", ".grok", ".agents", ".claude", ".cursor"]
         );
     }
 
     #[test]
     fn skill_config_dirs_gates_each_vendor() {
-        let mut c = CompatConfig::default();
+        let mut c = all_on();
         c.cursor.skills = false;
-        assert_eq!(c.skill_config_dirs(), vec![".grok", ".agents", ".claude"]);
+        assert_eq!(
+            c.skill_config_dirs(),
+            vec![".your-own-ai-build", ".grok", ".agents", ".claude"]
+        );
 
         c.claude.skills = false;
-        assert_eq!(c.skill_config_dirs(), vec![".grok", ".agents"]);
+        assert_eq!(c.skill_config_dirs(), vec![".your-own-ai-build", ".grok", ".agents"]);
 
         // Only the `cursor` cell on (`claude` off): `cursor` still appended last.
-        let mut c2 = CompatConfig::default();
+        let mut c2 = all_on();
         c2.claude.skills = false;
-        assert_eq!(c2.skill_config_dirs(), vec![".grok", ".agents", ".cursor"]);
+        assert_eq!(
+            c2.skill_config_dirs(),
+            vec![".your-own-ai-build", ".grok", ".agents", ".cursor"]
+        );
     }
 
     #[test]
     fn rules_dirs_all_on_matches_legacy_constant() {
         // Historical `RULES_DIRS` was `[".grok/rules", ".claude/rules", ".cursor/rules"]`.
         assert_eq!(
-            CompatConfig::default().rules_dirs(),
-            vec![".grok/rules", ".claude/rules", ".cursor/rules"]
+            all_on().rules_dirs(),
+            vec![".your-own-ai-build/rules", ".grok/rules", ".claude/rules", ".cursor/rules"]
         );
     }
 
     #[test]
     fn rules_dirs_gates_each_vendor() {
-        let mut c = CompatConfig::default();
+        let mut c = all_on();
         c.cursor.rules = false;
-        assert_eq!(c.rules_dirs(), vec![".grok/rules", ".claude/rules"]);
+        assert_eq!(
+            c.rules_dirs(),
+            vec![".your-own-ai-build/rules", ".grok/rules", ".claude/rules"]
+        );
         c.claude.rules = false;
-        assert_eq!(c.rules_dirs(), vec![".grok/rules"]);
+        assert_eq!(c.rules_dirs(), vec![".your-own-ai-build/rules", ".grok/rules"]);
     }
 
     #[test]
     fn agent_filenames_all_on_matches_legacy_constant() {
         // Historical `AGENT_FILENAMES`.
         assert_eq!(
-            CompatConfig::default().agent_filenames(),
+            all_on().agent_filenames(),
             vec![
                 "Agents.md",
                 "Claude.md",
@@ -571,7 +602,7 @@ mod tests {
 
     #[test]
     fn agent_filenames_drops_claude_subdir_when_off() {
-        let mut c = CompatConfig::default();
+        let mut c = all_on();
         c.claude.agents = false;
         assert_eq!(
             c.agent_filenames(),
@@ -589,15 +620,12 @@ mod tests {
     #[test]
     fn agents_home_dirs_all_on_matches_legacy_constant() {
         // Historical home scan was `[".claude", ".cursor"]`.
-        assert_eq!(
-            CompatConfig::default().agents_home_dirs(),
-            vec![".claude", ".cursor"]
-        );
+        assert_eq!(all_on().agents_home_dirs(), vec![".claude", ".cursor"]);
     }
 
     #[test]
     fn agents_home_dirs_gates_each_vendor() {
-        let mut c = CompatConfig::default();
+        let mut c = all_on();
         c.claude.agents = false;
         assert_eq!(c.agents_home_dirs(), vec![".cursor"]);
         c.cursor.agents = false;

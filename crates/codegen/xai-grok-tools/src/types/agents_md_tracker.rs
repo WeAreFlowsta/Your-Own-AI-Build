@@ -35,7 +35,12 @@ pub(crate) const AGENT_FILENAMES: &[&str] = &[
 /// The runtime list is produced by `CompatConfig::rules_dirs()`; this constant
 /// is retained only as the all-on reference for the pinning test.
 #[cfg(test)]
-pub(crate) const RULES_DIRS: &[&str] = &[".grok/rules", ".claude/rules", ".cursor/rules"];
+pub(crate) const RULES_DIRS: &[&str] = &[
+    ".your-own-ai-build/rules",
+    ".grok/rules",
+    ".claude/rules",
+    ".cursor/rules",
+];
 
 /// Maximum number of parent directories to walk upward per call.
 ///
@@ -892,8 +897,20 @@ mod tests {
     /// byte-for-byte default-behavior invariant is broken.
     #[test]
     fn compat_default_matches_legacy_constants() {
-        use crate::types::compat::CompatConfig;
-        let c = CompatConfig::default();
+        use crate::types::compat::{CompatConfig, VendorCompat};
+        let on = VendorCompat {
+            skills: true,
+            rules: true,
+            agents: true,
+            mcps: true,
+            hooks: true,
+            sessions: true,
+        };
+        let c = CompatConfig {
+            cursor: on,
+            claude: on,
+            codex: on,
+        };
         assert_eq!(c.agent_filenames(), AGENT_FILENAMES.to_vec());
         assert_eq!(c.rules_dirs(), RULES_DIRS.to_vec());
     }
