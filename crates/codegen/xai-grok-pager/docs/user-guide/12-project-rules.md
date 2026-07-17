@@ -43,7 +43,7 @@ Grok scans the Claude and Cursor rules directories by default. To disable scanni
 
 Grok scans for project rules in this order:
 
-1. **Global rules**: `~/.grok/` (applies to all projects)
+1. **Global rules**: `~/.your-own-ai-build/` (applies to all projects)
 2. **Repo rules**: If inside a git repo, every directory from the repo root down to the current working directory (inclusive)
 3. **CWD-only**: If not inside a git repo, only the current working directory
 
@@ -155,7 +155,7 @@ my-monorepo/
 To add rules for a single session without editing files, pass `--rules` (alias `--append-system-prompt`):
 
 ```bash
-grok --rules "Always use TypeScript. Prefer functional components."
+your-own-ai-build --rules "Always use TypeScript. Prefer functional components."
 ```
 
 Grok appends this text to the session's system prompt. Use it for session-specific customization.
@@ -189,7 +189,7 @@ Beyond AGENTS.md files, the `.grok/` directory in your project root can contain 
 
 | Path | Purpose |
 |------|---------|
-| `.grok/config.toml` | Project-scoped MCP servers, plugins, and permission rules (other settings load only from `~/.grok/config.toml`) |
+| `.grok/config.toml` | Project-scoped MCP servers, plugins, and permission rules (other settings load only from `~/.your-own-ai-build/config.toml`) |
 | `.grok/skills/` | Project-scoped skill definitions |
 | `.grok/plugins/` | Project-scoped plugins |
 | `.grok/agents/` | Project-scoped agent definitions |
@@ -202,10 +202,10 @@ These are all optional. See the respective guides for details on each.
 
 ## Inspecting Loaded Rules
 
-Use `grok inspect` to see all loaded project instructions:
+Use `your-own-ai-build inspect` to see all loaded project instructions:
 
 ```bash
-grok inspect
+your-own-ai-build inspect
 ```
 
 This shows each project instruction file it finds, with its path and approximate token count. Use it to confirm Grok picks up your rules.
@@ -222,7 +222,7 @@ This shows each project instruction file it finds, with its path and approximate
 
 4. **Use subdirectory scoping for large repos.** Different parts of a monorepo may have different conventions. Use per-directory AGENTS.md to scope rules appropriately.
 
-5. **Version control your rules.** Commit AGENTS.md to the repository so the whole team benefits. User-specific overrides belong in `~/.grok/` (global rules).
+5. **Version control your rules.** Commit AGENTS.md to the repository so the whole team benefits. User-specific overrides belong in `~/.your-own-ai-build/` (global rules).
 
 6. **Do not duplicate documentation.** AGENTS.md should contain actionable instructions, not a copy of your project's README. Link to external docs if needed.
 

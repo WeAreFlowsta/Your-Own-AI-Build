@@ -1,4 +1,4 @@
-//! Headless markdown analysis sharing Grok Build's exact `pulldown-cmark` config.
+//! Headless markdown analysis sharing Your Own AI Build's exact `pulldown-cmark` config.
 //!
 //! This crate is intentionally lean -- it depends only on `pulldown-cmark` -- so it
 //! can be used without pulling in the terminal-rendering stack (syntect, ratatui,
@@ -13,7 +13,7 @@
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use std::ops::Range;
 
-/// The exact `pulldown-cmark` option set Grok Build uses to render markdown.
+/// The exact `pulldown-cmark` option set Your Own AI Build uses to render markdown.
 ///
 /// With `ENABLE_STRIKETHROUGH`, pulldown treats both `~~…~~` and single-`~` pairs as
 /// strike. Callers must consume events via [`offset_events`] so only double-tilde
@@ -294,7 +294,7 @@ fn detect_malformed_tables(
     }
 }
 
-/// Parse `text` with Grok Build's options; count elements and flag structural issues.
+/// Parse `text` with Your Own AI Build's options; count elements and flag structural issues.
 pub fn analyze(text: &str) -> MarkdownAnalysis {
     let mut stats = MarkdownStats::default();
     let mut issues = Vec::new();

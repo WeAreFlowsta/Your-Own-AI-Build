@@ -23,7 +23,7 @@ npm i -g @xai-official/grok
 grok
 
 # Run a single task
-grok -p "Explain this codebase"
+your-own-ai-build -p "Explain this codebase"
 ```
 
 On first launch, Grok opens your browser to authenticate. For CI or headless environments, use an API key from [console.x.ai](https://console.x.ai):
@@ -35,7 +35,7 @@ export XAI_API_KEY="xai-..."
 ## Update
 
 ```bash
-grok update
+your-own-ai-build update
 ```
 
 Or if installed via npm:

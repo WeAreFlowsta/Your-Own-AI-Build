@@ -706,7 +706,7 @@ pub struct RemoteSettings {
     /// When `None` or `Some(false)`, sessions are shown in a flat list.
     #[serde(default)]
     pub session_picker_grouped: Option<bool>,
-    /// Whether the user is allowed to use Grok Build. Set by remote settings
+    /// Whether the user is allowed to use Your Own AI Build. Set by remote settings
     /// `grok_build_access_gate` targeting rules. `None` = no server response
     /// yet (client uses own fallback check). `Some(false)` = blocked.
     #[serde(default)]

@@ -28,14 +28,19 @@ const CLAUDE_MANAGED_SETTINGS_PATH: &str = "/etc/claude-code/managed-settings.js
 pub fn default_grok_home() -> PathBuf {
     #[allow(deprecated)]
     let home = std::env::home_dir().unwrap_or_else(|| PathBuf::from("."));
-    dunce::canonicalize(&home).unwrap_or(home).join(".grok")
+    dunce::canonicalize(&home)
+        .unwrap_or(home)
+        .join(".your-own-ai-build")
 }
 
-/// Per-user config directory: `$GROK_HOME` or `~/.grok`. Created if needed.
+/// Per-user config directory: `$YOUR_OWN_AI_BUILD_HOME`, `$GROK_HOME` (compat),
+/// or `~/.your-own-ai-build`. Created if needed.
 pub fn grok_home() -> PathBuf {
     GROK_HOME
         .get_or_init(|| {
-            let grok_home = if let Ok(v) = std::env::var("GROK_HOME") {
+            let grok_home = if let Ok(v) = std::env::var("YOUR_OWN_AI_BUILD_HOME") {
+                PathBuf::from(v)
+            } else if let Ok(v) = std::env::var("GROK_HOME") {
                 PathBuf::from(v)
             } else {
                 default_grok_home()
@@ -64,14 +69,18 @@ pub fn grok_application() -> PathBuf {
 
 /// [`grok_application`] under an explicit home instead of `$GROK_HOME`.
 pub fn grok_application_in(home: &std::path::Path) -> PathBuf {
-    let name = if cfg!(windows) { "grok.exe" } else { "grok" };
+    let name = if cfg!(windows) {
+        "your-own-ai-build.exe"
+    } else {
+        "your-own-ai-build"
+    };
     home.join("bin").join(name)
 }
 
-/// System-wide config directory: `/etc/grok/` on Unix, `None` on Windows.
+/// System-wide config directory: `/etc/your-own-ai-build/` on Unix, `None` on Windows.
 pub fn system_config_dir() -> Option<PathBuf> {
     if cfg!(unix) {
-        Some(PathBuf::from("/etc/grok"))
+        Some(PathBuf::from("/etc/your-own-ai-build"))
     } else {
         None
     }

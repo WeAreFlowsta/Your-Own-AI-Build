@@ -338,15 +338,18 @@ pub fn now_epoch_secs() -> i64 {
 }
 
 pub fn resolve_grok_home() -> Result<PathBuf> {
+    if let Ok(v) = std::env::var("YOUR_OWN_AI_BUILD_HOME") {
+        return Ok(PathBuf::from(v));
+    }
     if let Ok(v) = std::env::var("GROK_HOME") {
         return Ok(PathBuf::from(v));
     }
-    let home = PathBuf::from(std::env::var("HOME").context("neither $GROK_HOME nor $HOME is set")?);
+    let home = PathBuf::from(std::env::var("HOME").context("neither $YOUR_OWN_AI_BUILD_HOME nor $HOME is set")?);
     // Canonicalize the home dir so worktree paths share the same physical .grok
     // tree as trust/hooks even when it is symlinked. The dunce canonicalization
     // must stay in sync with xai_grok_config::default_grok_home();
     // home resolution deliberately differs ($HOME here vs std::env::home_dir()).
-    Ok(dunce::canonicalize(&home).unwrap_or(home).join(".grok"))
+    Ok(dunce::canonicalize(&home).unwrap_or(home).join(".your-own-ai-build"))
 }
 
 /// Serializes tests that mutate the process-global `GROK_HOME` env var so they

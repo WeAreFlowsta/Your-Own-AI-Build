@@ -149,8 +149,8 @@ pub struct PromptContext {
     #[serde(default = "default_system_prompt_label")]
     pub system_prompt_label: String,
 }
-/// Default identity on trim-tool-descriptions (`You are Grok released by xAI`).
-pub const DEFAULT_SYSTEM_PROMPT_LABEL: &str = "Grok";
+/// Default identity on trim-tool-descriptions (`You are Your Own AI Build, a local-first AI agent`).
+pub const DEFAULT_SYSTEM_PROMPT_LABEL: &str = "Your Own AI Build";
 fn default_system_prompt_label() -> String {
     DEFAULT_SYSTEM_PROMPT_LABEL.to_string()
 }
@@ -1229,7 +1229,7 @@ mod tests {
             ("plan", plan),
         ] {
             assert!(
-                !prompt.contains("You are a Grok Build agent"),
+                !prompt.contains("You are a Your Own AI Build agent"),
                 "{name} prompt should not duplicate base template identity"
             );
         }

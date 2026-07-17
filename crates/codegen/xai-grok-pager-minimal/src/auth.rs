@@ -313,7 +313,7 @@ pub(super) fn render_auth(buf: &mut Buffer, area: Rect, theme: &Theme, hint: &Mi
                 y,
                 bottom,
                 Line::from(Span::styled(
-                    "Grok Build may run or modify contents in this directory,",
+                    "Your Own AI Build may run or modify contents in this directory,",
                     gray,
                 )),
             );

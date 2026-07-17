@@ -311,13 +311,13 @@ impl AgentArgs {
                 Ok(canonical) if canonical.is_dir() => Some(canonical),
                 Ok(_) => {
                     eprintln!(
-                        "grok: --plugin-dir {}: not a directory; skipping",
+                        "your-own-ai-build: --plugin-dir {}: not a directory; skipping",
                         p.display()
                     );
                     None
                 }
                 Err(e) => {
-                    eprintln!("grok: --plugin-dir {}: {e}; skipping", p.display());
+                    eprintln!("your-own-ai-build: --plugin-dir {}: {e}; skipping", p.display());
                     None
                 }
             })
@@ -408,9 +408,9 @@ fn version_with_channel() -> &'static str {
 }
 #[derive(Debug, Clone, Parser)]
 #[command(
-    name = "grok",
+    name = "your-own-ai-build",
     version = version_with_channel(),
-    about = "Grok Build TUI",
+    about = "Your Own AI Build - a local-first AI agent for your terminal",
     disable_version_flag = true,
     next_display_order = None,
     help_template = "\
@@ -778,8 +778,8 @@ impl PagerArgs {
             .map(std::path::Path::new)
             .and_then(|p| p.file_name())
             .and_then(|n| n.to_str())
-            .filter(|n| *n == "grok" || *n == "agent")
-            .unwrap_or("grok")
+            .filter(|n| *n == "your-own-ai-build" || *n == "grok" || *n == "agent")
+            .unwrap_or("your-own-ai-build")
             .to_owned();
         let mut args = Self::parse_from(std::iter::once(bin_name).chain(std::env::args().skip(1)));
         if let Some(socket) = args.leader_socket.take() {
