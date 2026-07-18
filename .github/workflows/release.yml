@@ -24,7 +24,8 @@ jobs:
             label: linux-x86_64
             target: x86_64-unknown-linux-gnu
             best-effort: false
-          - os: macos-13
+          # GitHub retired Intel macOS runners; cross-compile x86_64 from arm64.
+          - os: macos-latest
             label: macos-x86_64
             target: x86_64-apple-darwin
             best-effort: false

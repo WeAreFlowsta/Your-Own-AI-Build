@@ -114,10 +114,23 @@ impl XaiProtoBuilder {
 
         // Can only process one input file when using --dependency_out=FILE.
         for proto in protos {
+            // Capture via real files, not /dev/stdout - Windows has no device
+            // paths, which broke every Windows build of this workspace.
+            let scratch = std::env::var_os("OUT_DIR")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(std::env::temp_dir);
+            let dep_file = scratch.join("protoc_dependency_out.d");
+            let desc_file = scratch.join("protoc_descriptor_set.bin");
             let mut command = Command::new(protoc.unwrap_or(Path::new("protoc")));
             command
-                .arg("--dependency_out=/dev/stdout")
-                .arg("--descriptor_set_out=/dev/null");
+                .arg(format!(
+                    "--dependency_out={}",
+                    dep_file.to_str().context("dep path not UTF-8")?
+                ))
+                .arg(format!(
+                    "--descriptor_set_out={}",
+                    desc_file.to_str().context("descriptor path not UTF-8")?
+                ));
 
             // Add protoc's well-known types include directory first (if found).
             // This is needed for Bazel sandboxed builds where protoc and its
@@ -143,15 +156,26 @@ impl XaiProtoBuilder {
                 return Err(anyhow::anyhow!("protoc command failed"));
             }
 
-            let output =
-                String::from_utf8(output.stdout).context("protoc command output not UTF-8")?;
+            let output = std::fs::read_to_string(&dep_file)
+                .context("reading protoc dependency_out file")?;
 
             let mut lines = output.lines();
             let first_line = lines.next().context("protoc command output is empty")?;
-            let prefix = "/dev/null:";
-            let rem = first_line.strip_prefix(prefix).with_context(|| {
-                format!("protoc command output must start with /dev/null: {output:?}")
-            })?;
+            // The .d format is `<descriptor_set_out path>: <deps...>`.
+            let prefix = format!(
+                "{}:",
+                desc_file.to_str().context("descriptor path not UTF-8")?
+            );
+            // Windows drive letters put a colon inside the path itself and
+            // protoc may escape characters in .d output, so fall back to
+            // splitting at the first ": " separator (a drive colon is never
+            // followed by a space).
+            let rem = first_line
+                .strip_prefix(&prefix)
+                .or_else(|| first_line.split_once(": ").map(|(_, deps)| deps))
+                .with_context(|| {
+                    format!("protoc dependency output must start with {prefix:?}: {output:?}")
+                })?;
             for line in iter::once(rem).chain(lines) {
                 let line = line.trim();
                 let line = line.strip_suffix("\\").unwrap_or(line);
