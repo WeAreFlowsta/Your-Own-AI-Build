@@ -40,7 +40,7 @@ Compress conversation history to save context window space. Optionally specify w
 /compact keep the auth implementation details
 ```
 
-When the context window fills up, Grok auto-compacts at 85% usage (configurable via `[session] auto_compact_threshold_percent` in config.toml).
+When the context window fills up, the agent auto-compacts at 85% usage (configurable via `[session] auto_compact_threshold_percent` in config.toml).
 
 ### `/context`
 
@@ -131,8 +131,8 @@ Aliases: `/title`
 Switch to a different model. Accepts model IDs or display names (case-insensitive). For reasoning models you can also pass an effort level as a second argument:
 
 ```
-/model grok-build
-/model Your Own AI Build
+/model my-local-model
+/model GPT-4o
 /model Reasoning X high
 ```
 
@@ -329,31 +329,11 @@ Open the extensions modal on the Skills tab to view installed skills.
 
 ---
 
-## Media Generation
-
-### `/imagine <description>`
-
-Generate an image from a text description.
-
-```
-/imagine a golden sunset over a calm ocean with silhouetted palm trees
-```
-
-### `/imagine-video <description>`
-
-Generate a video from an image or text description. Plans shots, generates source images, and animates them with `image_to_video`.
-
-```
-/imagine-video a cat playing piano in a jazz club
-```
-
----
-
 ## Scheduling
 
 ### `/loop [interval] <prompt>`
 
-Run a prompt on a recurring interval. Specify the interval as `30m`, `1 hour`, or `every 2 days`. If you omit it, Grok prompts you.
+Run a prompt on a recurring interval. Specify the interval as `30m`, `1 hour`, or `every 2 days`. If you omit it, the agent prompts you.
 
 ```
 /loop 30m check deploy status
@@ -370,7 +350,7 @@ Recurring tasks auto-expire after 7 days. Cancel with `scheduler_delete` (the jo
 
 ### `/goal`
 
-Set, manage, or check an autonomous goal. Grok works toward the objective across turns and reports progress.
+Set, manage, or check an autonomous goal. The agent works toward the objective across turns and reports progress.
 
 ```
 /goal Migrate the auth module to the new API
@@ -444,7 +424,7 @@ Browse in-TUI How-to Guides, open online Build docs, or jump to a guide by title
 ```
 
 - Bare `/docs` (or `/docs how-to`) opens the How-to Guides picker
-- `/docs web` opens https://docs.x.ai/build/overview in the browser
+- `/docs web` opens the online documentation in your browser
 - `/docs <title>` opens a specific guide (case-insensitive title match)
 
 Aliases: `/howto`, `/guides`
@@ -477,42 +457,6 @@ Manage personas -- create, edit, and delete personas. A subagent can apply a per
 
 ```
 /personas
-```
-
----
-
-## Account and Billing
-
-### `/login`
-
-Log in or re-authenticate with your account without leaving the session.
-
-```
-/login
-```
-
-### `/logout`
-
-Log out and return to the login screen.
-
-```
-/logout
-```
-
-### `/usage`
-
-View credit usage or manage billing.
-
-```
-/usage
-```
-
-### `/privacy`
-
-Show or toggle privacy and data-retention status.
-
-```
-/privacy
 ```
 
 ---

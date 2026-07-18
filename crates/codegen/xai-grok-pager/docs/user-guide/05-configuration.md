@@ -225,7 +225,7 @@ timeout_secs = 1800                    # seconds to wait when enabled (default: 
 
 [toolset.web_fetch]
 proxy_endpoint = "https://proxy.example.com"   # egress proxy URL
-allowed_domains = ["docs.rs", "x.ai"]           # override the built-in allowlist
+allowed_domains = ["docs.rs", "crates.io"]     # override the built-in allowlist
 ```
 
 `[toolset.ask_user_question]` is honored across **requirements.toml**, **managed
@@ -730,7 +730,7 @@ Key environment variables. See the README for the complete list.
 
 | Variable | Description |
 |----------|-------------|
-| `XAI_API_KEY` | API key from console.x.ai |
+| `XAI_API_KEY` | Global fallback API key for custom model endpoints |
 | `GROK_AUTH_PROVIDER_COMMAND` | External auth binary path |
 | `GROK_AUTH_PROVIDER_LABEL` | Display name on TUI login screen |
 | `GROK_AUTH_TOKEN_TTL` | Token lifetime in seconds |

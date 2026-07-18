@@ -1,6 +1,6 @@
 # Headless Mode and Scripting
 
-Headless mode runs Grok non-interactively from the command line. It accepts a single prompt, executes it with full tool access, and returns the result. Use it to automate tasks, script workflows, build integrations, and parse output programmatically.
+Headless mode runs Your Own AI Build non-interactively from the command line. It accepts a single prompt, executes it with full tool access, and returns the result. Use it to automate tasks, script workflows, build integrations, and parse output programmatically.
 
 ---
 
@@ -12,7 +12,7 @@ Passing a prompt non-interactively triggers headless mode. The most common way i
 your-own-ai-build -p "Your prompt here"
 ```
 
-Grok processes the prompt, runs any necessary tools, and prints the result to stdout. The process exits when the response is complete.
+The agent processes the prompt, runs any necessary tools, and prints the result to stdout. The process exits when the response is complete.
 
 ---
 
@@ -21,7 +21,7 @@ Grok processes the prompt, runs any necessary tools, and prints the result to st
 | Flag                    | Description                                           |
 | ----------------------- | ----------------------------------------------------- |
 | `-p, --single <PROMPT>` | The prompt to send (or use `--prompt-json` / `--prompt-file`) |
-| `-m, --model <MODEL>`   | Model to use (e.g., `grok-build`)              |
+| `-m, --model <MODEL>`   | Model to use (e.g., `my-local-model`)          |
 | `-s, --session-id <ID>` | Create a **new** session with this **UUID** (errors if invalid UUID or already in use under the target session directory; does not resume — use `-r`/`-c`) |
 | `--fork-session`        | With `-r`/`-c`, fork into a new session ID instead of appending to the original |
 | `-r, --resume <ID>`     | Resume an existing session (errors if not found)      |
@@ -147,7 +147,7 @@ When the prompt reached the model, the same object also carries spend fields
     "total_tokens": 50103
   },
   "modelUsage": {
-    "grok-build": {
+    "my-local-model": {
       "inputTokens": 7210,
       "outputTokens": 1893,
       "cacheReadInputTokens": 41000,
@@ -179,9 +179,9 @@ Usage notes:
   `modelUsage.*.modelCalls`. This is the same counter family as `--max-turns`,
   not a guarantee of exact equality when rounds lack usage or hit gates.
 - `total_cost_usd` appears only when the server reported a **complete** cost.
-  Absence means unreported or incomplete, never free. Cost is stamped for
-  API-key traffic today; pool/OAuth paths often omit it until the server
-  stamps cost. When some calls lacked cost, `cost_is_partial` is true and
+  Absence means unreported or incomplete, never free. Local servers and most
+  OpenAI-compatible endpoints never report cost, so expect these fields to be
+  absent. When some calls lacked cost, `cost_is_partial` is true and
   **all** cost floats are omitted (`total_cost_usd` and every
   `modelUsage.*.costUSD`) so consumers cannot sum model rows into a fake
   complete bill.
@@ -199,7 +199,7 @@ Usage notes:
 
 The `sessionId` field is useful for resuming the conversation later.
 
-On failure, Grok emits an error object (process exit non-zero). Prompt-level
+On failure, the agent emits an error object (process exit non-zero). Prompt-level
 failures may also include frozen spend fields when usage was recorded:
 
 ```json
@@ -229,7 +229,7 @@ Event types:
 `end` is always the last event. Spend fields on `end` match the json object
 shape (snake_case uncached `input_tokens`, safe cost floats).
 
-Grok may also emit `max_turns_reached` and `auto_compact_*` events; treat the list as non-exhaustive and switch on `type`.
+The agent may also emit `max_turns_reached` and `auto_compact_*` events; treat the list as non-exhaustive and switch on `type`.
 
 ---
 
@@ -335,7 +335,7 @@ your-own-ai-build -p "Review staged changes for obvious bugs. Reply OK if fine, 
 
 ```bash
 for file in src/*.js; do
-  grok -p "Migrate $file from CommonJS to ES modules." --yolo
+  your-own-ai-build -p "Migrate $file from CommonJS to ES modules." --yolo
 done
 ```
 
@@ -345,14 +345,14 @@ done
 
 ### Python Wrapper
 
-Grok's headless mode can be wrapped as an OpenAI-compatible chat completion API:
+Headless mode can be wrapped as an OpenAI-compatible chat completion API:
 
 ```python
 import asyncio
 import json
 import os
 
-class GrokChat:
+class AgentChat:
     """Simple OpenAI-compatible wrapper using headless mode."""
 
     def __init__(self, cwd="."):
@@ -360,11 +360,11 @@ class GrokChat:
         self.env = {**os.environ}
 
     def _build_cmd(self, prompt, model, stream):
-        return ["grok", "-p", prompt, "-m", model, "--cwd", self.cwd,
+        return ["your-own-ai-build", "-p", prompt, "-m", model, "--cwd", self.cwd,
                 "--output-format", "streaming-json" if stream else "json",
                 "--yolo"]
 
-    async def create(self, messages, model="grok-build", stream=False):
+    async def create(self, messages, model="my-local-model", stream=False):
         prompt = messages[-1]["content"] if len(messages) == 1 else "\n".join(
             f"{m['role']}: {m['content']}" for m in messages
         )
@@ -400,7 +400,7 @@ class GrokChat:
 
 
 async def main():
-    client = GrokChat(cwd=".")
+    client = AgentChat(cwd=".")
     response = await client.create(
         [{"role": "user", "content": "What files are here?"}]
     )
@@ -415,7 +415,7 @@ asyncio.run(main())
 #!/bin/bash
 # Run a code review and exit with failure if issues are found
 
-RESULT=$(grok -p "Review this PR for bugs. Output JSON with 'issues' array." \
+RESULT=$(your-own-ai-build -p "Review this PR for bugs. Output JSON with 'issues' array." \
   --output-format json --yolo | jq -r '.text')
 
 ISSUE_COUNT=$(echo "$RESULT" | jq '.issues | length' 2>/dev/null || echo "0")
@@ -453,16 +453,16 @@ Key environment variables that affect headless mode:
 
 | Variable                        | Description                                                   |
 | ------------------------------- | ------------------------------------------------------------- |
-| `XAI_API_KEY`        | API key for authentication (required when no browser login)   |
+| `XAI_API_KEY`        | Global fallback API key for models with no `api_key`/`env_key` of their own (see [Authentication](02-authentication.md)) |
 | `GROK_HOME`                    | Override config directory (default: `~/.your-own-ai-build`)                |
 | `GROK_LOG_FILE`                | Path to a log file (used verbatim as the path; works in headless and TUI, honors `RUST_LOG`) |
 | `RUST_LOG`                     | Log level filter (e.g. `debug`). Headless logs to stderr.     |
 
-For CI environments without browser access, set `XAI_API_KEY` with an API key from [console.x.ai](https://console.x.ai):
+Headless mode uses the same model configuration as the TUI. For a provider that needs a key, export the environment variable named by the model's `env_key` in the CI job:
 
 ```bash
-export XAI_API_KEY="xai-..."
-your-own-ai-build -p "Run the test suite" --yolo
+export OPENAI_API_KEY="sk-..."
+your-own-ai-build -p "Run the test suite" --yolo -m gpt-4o
 ```
 
 ---
@@ -478,16 +478,15 @@ your-own-ai-build -p "Run the test suite" --yolo
 
 ---
 
-## Authentication for Headless Environments
+## Credentials for Headless Environments
 
-For headless use, authenticate with one of:
+There is no login step - headless runs resolve credentials exactly like the TUI, from `~/.your-own-ai-build/config.toml`:
 
-- **`XAI_API_KEY`** — simplest for CI. See [Environment Variables](#environment-variables-for-headless) above.
-- **`your-own-ai-build login --device-auth`** (or `--device-code`) — no browser needed on the target machine.
-  See [Authentication > Device Code Flow](02-authentication.md#device-code-flow).
-- **`your-own-ai-build login`** — browser-based OAuth2 on machines with a GUI.
+- **Local server** (Your Own AI desktop app, llama.cpp, Ollama) - nothing to provide beyond the model config; a placeholder `api_key` is enough.
+- **Per-model `api_key` / `env_key`** - for hosted providers, set the key in the model config or export the environment variable named by `env_key` in the CI job.
+- **`XAI_API_KEY`** - global fallback env var for models with no key of their own.
 
-If you've previously logged in, cached credentials are used automatically.
+See [Authentication](02-authentication.md) and [Custom Models > Credential Resolution](11-custom-models.md#credential-resolution).
 
 ---
 
@@ -496,17 +495,17 @@ If you've previously logged in, cached credentials are used automatically.
 - Headless mode starts a **fresh session by default**. Use `-r/--resume` or `-c/--continue` to maintain context across calls.
 - The `--output-format json` response always includes a `sessionId` you can use with `--resume` for follow-up calls.
 - Combine `--yolo` with `--rules` to set guardrails: `your-own-ai-build -p "..." --yolo --rules "Never delete files"`.
-- For debugging, raise the log level and capture stderr: `RUST_LOG=debug grok -p "..." 2> debug.log`.
+- For debugging, raise the log level and capture stderr: `RUST_LOG=debug your-own-ai-build -p "..." 2> debug.log`.
 
 ---
 
 ## Project Root Discovery
 
-When Grok starts, it discovers the project root by walking upward from `--cwd`
+At startup, the agent discovers the project root by walking upward from `--cwd`
 (or the current directory) until it finds a `.git` directory.
 
 Note: If `--cwd` is nested inside a large repository (such as a monorepo),
-Grok discovers that repository as the project root and scopes its discovery (AGENTS.md, skills, git history) to it, which can make
+the agent discovers that repository as the project root and scopes its discovery (AGENTS.md, skills, git history) to it, which can make
 startup slow. Point `--cwd` at the specific subproject you want to work in to keep
 the scope small.
 
@@ -514,13 +513,11 @@ the scope small.
 
 ## File Locations
 
-Grok stores data in `~/.your-own-ai-build` (override with `GROK_HOME`; see [Environment Variables for Headless](#environment-variables-for-headless)):
+Your Own AI Build stores data in `~/.your-own-ai-build` (override with `GROK_HOME`; see [Environment Variables for Headless](#environment-variables-for-headless)):
 
 | Path                     | Contents                              |
 | ------------------------ | ------------------------------------- |
 | `config.toml`            | User configuration                    |
-| `auth.json`              | Cached OAuth2/API credentials         |
-| `version.json`           | Version cache for update checks       |
 | `sessions/`              | Session transcripts (SQLite)          |
 | `memory/`                | Cross-session memory store            |
 | `logs/`                  | Internal log files (for example `unified.jsonl`) |
@@ -535,12 +532,12 @@ Grok stores data in `~/.your-own-ai-build` (override with `GROK_HOME`; see [Envi
 
 For containers or CI, mount `~/.your-own-ai-build` read-only:
 
-- Pre-populate `auth.json` or use `XAI_API_KEY`
+- Provide provider API keys via environment variables (`env_key` or `XAI_API_KEY`) rather than writing them into the mounted `config.toml`
 - Session persistence fails silently (ephemeral)
 - Update checks log a warning and skip
 
 ```bash
-export XAI_API_KEY="xai-..."
+export OPENAI_API_KEY="sk-..."
 export GROK_DISABLE_AUTOUPDATER=1
 your-own-ai-build -p "..." --no-auto-update
 ```

@@ -1,6 +1,6 @@
 # Your Own AI Build User Guide
 
-Learn how to install, configure, and extend Your Own AI Build, the terminal-based AI coding assistant from SpaceXAI.
+Learn how to build, configure, and extend Your Own AI Build, the local-first AI agent for your terminal.
 
 ---
 
@@ -10,8 +10,8 @@ Start here. These guides cover what you need on your first day.
 
 | # | Document | Description |
 |---|----------|-------------|
-| 1 | [Getting Started](01-getting-started.md) | Installation, first launch, authentication, basic interaction, and key concepts |
-| 2 | [Authentication](02-authentication.md) | Browser login, API keys, OIDC/SSO, external auth providers, and device-code flow |
+| 1 | [Getting Started](01-getting-started.md) | Building from source, first launch, model configuration, basic interaction, and key concepts |
+| 2 | [Authentication](02-authentication.md) | No sign-in required; provider API keys via config.toml and environment variables |
 | 3 | [Keyboard Shortcuts](03-keyboard-shortcuts.md) | Reference for every key binding and mouse action in the TUI |
 | 4 | [Slash Commands](04-slash-commands.md) | Every `/` command for sessions, models, memory, hooks, and plugins |
 | 5 | [Configuration](05-configuration.md) | `config.toml`, `pager.toml`, environment variables, and file locations |
@@ -50,3 +50,4 @@ Automate, script, and integrate Your Own AI Build with other systems.
 | 20 | [Background Tasks and Monitoring](20-background-tasks.md) | `background: true`, `/loop`, `monitor`, and `Ctrl+G` to demote |
 | 21 | [Terminal Support and Troubleshooting](21-terminal-support.md) | tmux, SSH, truecolor, clipboard, and OSC 52 |
 | 22 | [Permissions and Safety Controls](22-permissions-and-safety.md) | `dontAsk` mode, auto-approved tools, the safe-bash list, and restrictive PreToolUse hooks (such as git/gh-only) |
+| 24 | [Monitoring Usage](24-monitoring-usage.md) | Local session stats with `/context` and `/session-info`, headless spend fields, and the no-telemetry stance |
