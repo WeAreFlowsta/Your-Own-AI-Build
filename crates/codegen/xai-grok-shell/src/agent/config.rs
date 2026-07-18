@@ -2284,7 +2284,10 @@ impl Config {
             .requirement(self.requirements.voice_mode.pinned())
             .config(self.features.voice_mode)
             .feature_flag(ff)
-            .default(true)
+            // Voice dictation streams audio to the upstream vendor's STT API;
+            // off by default in this local-first build (opt back in via
+            // config/env once pointed at your own endpoint).
+            .default(false)
             .resolve()
     }
     /// `image_gen` tool gate. Default on; gated only by the `GROK_IMAGE_GEN`

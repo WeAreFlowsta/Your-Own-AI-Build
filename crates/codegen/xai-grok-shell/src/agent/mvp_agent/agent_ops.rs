@@ -1250,36 +1250,9 @@ impl MvpAgent {
     pub(super) fn prepare_image_gen_config(
         &self,
     ) -> xai_grok_tools::implementations::grok_build::image_gen::ImageGenConfig {
-        use xai_grok_tools::implementations::grok_build::image_gen::ImageGenConfig;
-        let sampling_config = self.sampling_config.borrow();
-        let Some(ref api_key) = sampling_config.api_key else {
-            return ImageGenConfig::Disabled;
-        };
-        let tier_restricted = self.is_tier_restricted_capability();
-        let cfg = self.cfg.borrow();
-        let base_url = cfg.endpoints.xai_api_base_url.clone();
-        let version = cfg
-            .client_version
-            .clone()
-            .unwrap_or_else(|| xai_grok_version::VERSION.to_string());
-        let alpha_test_key = cfg.endpoints.alpha_test_key.clone();
-        let mut headers = indexmap::IndexMap::new();
-        headers.insert("user-agent".to_string(), format!("xai-grok-build/{version}"));
-        inject_proxy_headers(
-            &mut headers,
-            cfg.client_version.as_deref(),
-            alpha_test_key.as_deref(),
-            &base_url,
-        );
-        ImageGenConfig::Enabled {
-            api_key: api_key.clone(),
-            base_url,
-            extra_headers: headers,
-            image_gen_enabled: cfg.resolve_image_gen().value,
-            image_edit_enabled: cfg.resolve_image_edit().value,
-            model_override: cfg.resolve_image_gen_model_override(),
-            tier_restricted,
-        }
+        // Image generation called the upstream vendor's Imagine API; this build
+        // is local-first, so the tools stay unregistered.
+        xai_grok_tools::implementations::grok_build::image_gen::ImageGenConfig::Disabled
     }
     /// Build deploy-service config. The tool talks directly to the deployer service.
     pub(super) fn prepare_app_builder_deployer_config(
@@ -1292,42 +1265,9 @@ impl MvpAgent {
     pub(super) fn prepare_video_gen_config(
         &self,
     ) -> xai_grok_tools::implementations::grok_build::video_gen::VideoGenConfig {
-        use xai_grok_tools::implementations::grok_build::video_gen::VideoGenConfig;
-        let Some(api_key) = self.sampling_config.borrow().api_key.clone() else {
-            return VideoGenConfig::Disabled;
-        };
-        let tier_restricted = self.is_tier_restricted_capability();
-        let cfg = self.cfg.borrow();
-        let zdr_video_output_s3 = cfg
-            .disable_zdr_incompatible_tools
-            .then(|| cfg.zdr_video_output_s3.clone())
-            .flatten()
-            .filter(|s3| s3.is_valid());
-        if cfg.disable_zdr_incompatible_tools && zdr_video_output_s3.is_none() {
-            tracing::info!("video_gen disabled by tools.disable_zdr_incompatible_tools");
-            return VideoGenConfig::Disabled;
-        }
-        let base_url = cfg.endpoints.xai_api_base_url.clone();
-        let version = cfg
-            .client_version
-            .clone()
-            .unwrap_or_else(|| xai_grok_version::VERSION.to_string());
-        let alpha_test_key = cfg.endpoints.alpha_test_key.clone();
-        let mut headers = indexmap::IndexMap::new();
-        headers.insert("user-agent".to_string(), format!("xai-grok-build/{version}"));
-        inject_proxy_headers(
-            &mut headers,
-            cfg.client_version.as_deref(),
-            alpha_test_key.as_deref(),
-            &base_url,
-        );
-        VideoGenConfig::Enabled {
-            api_key,
-            base_url,
-            extra_headers: headers,
-            zdr_video_output_s3: zdr_video_output_s3.map(Box::new),
-            tier_restricted,
-        }
+        // Video generation called the upstream vendor's API; this build is
+        // local-first, so the tools stay unregistered.
+        xai_grok_tools::implementations::grok_build::video_gen::VideoGenConfig::Disabled
     }
     pub(super) fn prepare_web_search_sampling_config(&self) -> Option<SamplingConfig> {
         let model_id = self.cfg.borrow().web_search_model.clone();
