@@ -4,6 +4,7 @@ use ratatui::style::Modifier;
 use ratatui::text::{Line, Span, Text};
 
 use super::TOOL_HEADER_RANGE;
+use crate::appearance::AppearanceConfig;
 use crate::appearance::ExecuteHeaderStyle;
 use crate::render::wrapping::word_wrap_lines_with_joiners;
 use crate::scrollback::block::BlockContent;
@@ -305,7 +306,7 @@ impl ExecuteToolCallBlock {
         };
         let mut spans = vec![Span::styled("Run ", label_style)];
         if self.bash_mode {
-            // Same style as session event messages (e.g. "Worked for 2.3s.")
+            // Same style as session event messages (e.g. "Worked for 2.3s")
             spans.push(Span::styled("(user) ", theme.muted()));
         }
         // Single ratatui Line — never pass raw newlines (callers that need
@@ -579,10 +580,13 @@ impl ExecuteToolCallBlock {
                                 .with_joiner(joiner.clone()),
                         );
                     }
-                    // Ellipsis (non-selectable, breaks range continuity)
+                    let hidden = total - threshold;
                     lines.push(
-                        BlockLine::separator(Line::from(Span::styled("\u{2026}", theme.muted())))
-                            .with_panel_background(theme.bg_dark),
+                        BlockLine::separator(Line::from(Span::styled(
+                            format!("\u{2026} +{hidden} lines"),
+                            theme.muted(),
+                        )))
+                        .with_panel_background(theme.bg_dark),
                     );
                     // Last M lines: range base + 1 (distinct from first chunk)
                     for (wrapped_line, joiner) in
@@ -704,7 +708,7 @@ impl BlockContent for ExecuteToolCallBlock {
         }
     }
 
-    fn has_vpad(&self, _ctx: &BlockContext) -> bool {
+    fn has_vpad_for(&self, _appearance: &AppearanceConfig) -> bool {
         false
     }
 
@@ -722,18 +726,6 @@ impl BlockContent for ExecuteToolCallBlock {
         // "Run"/"Running" description (stripped to empty) does not claim a
         // fold when collapsed and expanded headers are identical.
         self.description_display(true).is_some() || self.output.is_some() || self.error.is_some()
-    }
-
-    /// Fold cycle. Agent tools toggle Collapsed <-> Truncated (glanceable
-    /// preview; full output in the viewer). User `!` commands toggle
-    /// Collapsed <-> Expanded: re-expanding must restore the full output,
-    /// never the lossy first/last window.
-    fn next_fold_mode(&self, current: DisplayMode, _is_running: bool) -> DisplayMode {
-        match current {
-            DisplayMode::Collapsed if self.bash_mode => DisplayMode::Expanded,
-            DisplayMode::Collapsed => DisplayMode::Truncated,
-            DisplayMode::Truncated | DisplayMode::Expanded => DisplayMode::Collapsed,
-        }
     }
 
     /// Minimum fold mode used by collapse + the running expand chevron.
@@ -999,15 +991,6 @@ mod tests {
         assert_eq!(bash.finished_display_mode(), Some(DisplayMode::Expanded));
         assert_eq!(bash.collapse_mode(true), DisplayMode::Truncated);
         assert_eq!(bash.collapse_mode(false), DisplayMode::Collapsed);
-        // Fold cycle for user bash skips the lossy Truncated window.
-        assert_eq!(
-            bash.next_fold_mode(DisplayMode::Collapsed, false),
-            DisplayMode::Expanded
-        );
-        assert_eq!(
-            bash.next_fold_mode(DisplayMode::Expanded, false),
-            DisplayMode::Collapsed
-        );
 
         let failed = ExecuteToolCallBlock::new("false").with_error("exit 1");
         assert_eq!(failed.default_display_mode(), DisplayMode::Collapsed);

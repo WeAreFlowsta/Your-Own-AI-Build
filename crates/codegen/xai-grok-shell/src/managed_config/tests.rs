@@ -338,7 +338,8 @@ fn marker_is_not_a_managed_artifact() {
         [
             "managed_config.toml",
             "requirements.toml",
-            "managed_config.sig.json"
+            "managed_config.sig.json",
+            "managed_identity.sig.json"
         ],
         "the artifact list is load-bearing for every derived loop; change it deliberately"
     );
@@ -392,4 +393,95 @@ fn purge_keeps_marker_when_an_artifact_removal_fails() {
             .exists(),
         "with every artifact removed, the marker goes last"
     );
+}
+
+// --- The is-managed claim persist rules ---
+
+/// Deployment id wins over team id (server parity).
+#[test]
+fn served_principal_prefers_deployment_id() {
+    use xai_grok_config::signed_policy::SignedPayload;
+    let payload = |dep: Option<&str>, team: Option<&str>| SignedPayload {
+        typ: xai_grok_config::signed_policy::MANAGED_POLICY_TYP.into(),
+        version: 1,
+        deployment_id: dep.map(Into::into),
+        team_id: team.map(Into::into),
+        managed_config: None,
+        requirements: None,
+        fail_closed: false,
+        expires_at: 0,
+        nonce: String::new(),
+        key_id: "v1".into(),
+    };
+    assert_eq!(
+        served_principal_of(&payload(Some("dep-1"), Some("team-007"))),
+        Some("dep-1")
+    );
+    assert_eq!(
+        served_principal_of(&payload(None, Some("team-007"))),
+        Some("team-007")
+    );
+    assert_eq!(served_principal_of(&payload(None, None)), None);
+}
+
+/// A verified claim persists ONLY when bound to the served principal.
+#[test]
+fn claim_persists_only_when_bound_to_served_principal() {
+    let claim = |principal: &str| xai_grok_config::signed_policy::ManagedIdentityClaim {
+        typ: xai_grok_config::signed_policy::MANAGED_IDENTITY_TYP.into(),
+        principal: principal.into(),
+        fail_closed: true,
+        expires_at: 4_000_000_000,
+        key_id: "v1".into(),
+    };
+    assert!(claim_binds_to(&claim("team-007"), Some("team-007")));
+    assert!(!claim_binds_to(&claim("team-evil"), Some("team-007")));
+    assert!(!claim_binds_to(&claim("team-007"), None));
+}
+
+/// Old server, no claim envelopes: nothing persists, nothing errors.
+#[test]
+fn absent_claim_is_skipped() {
+    assert!(verified_claim_sidecar(&ManagedConfigResponse::default(), Some("team-007")).is_none());
+}
+
+/// The startup label: a deployment key wins outright, and an unreadable
+/// `auth.json` is `unknown`, never `personal` — the sync still runs and
+/// mislabeling it would hide the deployment-cost split.
+#[test]
+fn auth_mode_classification() {
+    use xai_grok_telemetry::startup::AuthMode;
+    let err = || std::io::Error::other("unreadable");
+    assert_eq!(auth_mode(true, &Ok(true)), AuthMode::Deployment);
+    assert_eq!(auth_mode(true, &Err(err())), AuthMode::Deployment);
+    assert_eq!(auth_mode(false, &Ok(true)), AuthMode::Team);
+    assert_eq!(auth_mode(false, &Ok(false)), AuthMode::Personal);
+    assert_eq!(auth_mode(false, &Err(err())), AuthMode::Unknown);
+}
+
+/// The `GROK_CONFIG` overlay must not arm or disarm the managed-config sync gate:
+/// the reader is overlay-free, so an overlay value never reaches it in either
+/// direction. Requirements/managed layers still resolve normally.
+#[test]
+fn managed_config_gate_ignores_the_overlay_in_both_directions() {
+    use crate::config::ConfigLayers;
+
+    fn features_managed_config(v: bool) -> toml::Value {
+        toml::from_str(&format!("[features]\nmanaged_config = {v}\n")).unwrap()
+    }
+
+    let mut layers = ConfigLayers {
+        user: features_managed_config(true),
+        env_overlay: Some(features_managed_config(false)),
+        ..Default::default()
+    };
+    assert_eq!(managed_config_enabled_from_layers(&layers), Some(true));
+
+    layers.user = features_managed_config(false);
+    layers.env_overlay = Some(features_managed_config(true));
+    assert_eq!(managed_config_enabled_from_layers(&layers), Some(false));
+
+    layers.user = toml::Value::Table(Default::default());
+    layers.env_overlay = Some(features_managed_config(false));
+    assert_eq!(managed_config_enabled_from_layers(&layers), None);
 }

@@ -136,31 +136,10 @@ impl ModelState {
         self.context_window_override = Some(tokens);
     }
 
-    /// Replace the available models, preserving current selection if still valid.
-    pub fn update_catalog(
-        &mut self,
-        new_available: IndexMap<acp::ModelId, acp::ModelInfo>,
-        fallback_current: Option<acp::ModelId>,
-    ) {
-        let previous_current_model = self.current.clone();
+    /// Replace the available-model list. Leaves `current` and
+    /// `reasoning_effort` alone — those change only via `/model` / create / load.
+    pub fn update_catalog(&mut self, new_available: IndexMap<acp::ModelId, acp::ModelInfo>) {
         self.available = new_available;
-        if let Some(ref id) = self.current {
-            if !self.available.contains_key(id) {
-                self.current = fallback_current;
-            }
-        } else {
-            self.current = fallback_current;
-        }
-        // The models/update broadcast carries each model's static default effort,
-        // not this session's choice; only re-derive when the model changed so a
-        // catalog refresh can't clobber a user-set effort.
-        if self.current != previous_current_model {
-            self.reasoning_effort = self
-                .current
-                .as_ref()
-                .and_then(|id| self.available.get(id))
-                .and_then(|info| parse_reasoning_effort_meta(info.meta.as_ref()));
-        }
     }
 
     /// Set the current model and resolve reasoning effort from catalog meta.
@@ -231,9 +210,6 @@ impl ModelState {
         {
             return Some(option.value);
         }
-        // Canonical level (e.g. "high", "max"→xhigh) only if the model menu
-        // actually offers that value — not free-form power-user aliases that
-        // would 400 on the server (e.g. `none` on grok-4.5).
         let parsed = token.parse::<ReasoningEffort>().ok()?;
         options
             .iter()

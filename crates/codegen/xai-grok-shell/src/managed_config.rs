@@ -9,10 +9,11 @@ use response::{ApplyOutcome, ManagedConfigResponse, ManagedConfigSource, verify_
 
 /// Server-synced policy artifacts. Excludes the sync marker ([`remove_managed_config_files`]
 /// removes that last, only on full success).
-pub const MANAGED_ARTIFACT_FILES: [&str; 3] = [
+pub const MANAGED_ARTIFACT_FILES: [&str; 4] = [
     xai_grok_config::MANAGED_CONFIG_FILENAME,
     xai_grok_config::REQUIREMENTS_FILENAME,
     xai_grok_config::signed_policy::SIGNATURE_SIDECAR_FILE,
+    xai_grok_config::signed_policy::MANAGED_IDENTITY_SIDECAR_FILE,
 ];
 
 /// Delete server-synced files then the marker (never `config.toml`).
@@ -36,6 +37,10 @@ fn remove_managed_config_files(home: &std::path::Path) {
         format!(
             "{}.",
             xai_grok_config::signed_policy::SIGNATURE_SIDECAR_FILE
+        ),
+        format!(
+            "{}.",
+            xai_grok_config::signed_policy::MANAGED_IDENTITY_SIDECAR_FILE
         ),
     ];
     if let Ok(entries) = std::fs::read_dir(home) {
@@ -132,6 +137,12 @@ fn team_principal_signed_in() -> std::io::Result<bool> {
 /// configured and no team signed in (logout). A configured deployment key keeps
 /// its files (original "never auto-deletes" behavior). Runs at startup and on
 /// logout; best-effort.
+///
+/// **fail_closed:** when the marker or on-disk requirements opt in to fail-closed
+/// (or requirements exist but are unreadable), do **not** wipe. A personal/User
+/// principal (or signed-out auth) must not escape enforced policy by swapping
+/// `auth.json` and letting orphan clear delete the artifacts. Non-fail-closed
+/// team policy still clears on logout as before.
 pub fn clear_orphan() {
     if resolve_deployment_key().is_some() {
         return;
@@ -148,6 +159,12 @@ pub fn clear_orphan() {
     let Some(_lock) = try_lock_managed_config(&home) else {
         return; // another process is syncing; retry next call
     };
+    if xai_grok_config::fail_closed_policy_armed_at(&home) {
+        tracing::info!(
+            "keeping fail_closed managed policy on disk; no team principal present to own a clear"
+        );
+        return;
+    }
     remove_managed_config_files(&home);
 }
 
@@ -227,10 +244,11 @@ async fn fetch_managed_config(
     token: &str,
     source: ManagedConfigSource,
     max_attempts: u32,
+    echo_principal: Option<&str>,
 ) -> Result<ManagedConfigResponse, ManagedConfigError> {
     crate::http::send_with_retry_escaping_pool(
         move |client: reqwest::Client| async move {
-            fetch_managed_config_once(&client, url, token, source).await
+            fetch_managed_config_once(&client, url, token, source, echo_principal).await
         },
         max_attempts,
         |e: &ManagedConfigError| e.is_retryable(),
@@ -319,14 +337,25 @@ async fn fetch_managed_config_once(
     url: &str,
     token: &str,
     source: ManagedConfigSource,
+    echo_principal: Option<&str>,
 ) -> Result<ManagedConfigResponse, ManagedConfigError> {
-    let resp = match client
+    let mut request = client
         .get(url)
         .header("Authorization", format!("Bearer {}", token))
-        .timeout(std::time::Duration::from_secs(15))
-        .send()
-        .await
+        .timeout(std::time::Duration::from_secs(15));
+    // Replay-probe echo (telemetry only). Skip on invalid HeaderValue so a
+    // corrupt sidecar never bricks the fetch (echo is fail-open).
+    if let Some(nonce) = xai_grok_config::signed_policy::stored_envelope_nonce(
+        &crate::util::grok_home::grok_home(),
+        echo_principal,
+    ) && let Ok(value) = reqwest::header::HeaderValue::from_str(&nonce)
     {
+        request = request.header(
+            xai_grok_config::signed_policy::MANAGED_CONFIG_NONCE_ECHO_HEADER,
+            value,
+        );
+    }
+    let resp = match request.send().await {
         Ok(r) if r.status().is_success() => r,
         Ok(r) => {
             let status = r.status().as_u16();
@@ -374,7 +403,7 @@ fn managed_config_sync_interval() -> std::time::Duration {
 }
 
 /// Periodically sync managed config in the background. Best-effort.
-pub(crate) fn spawn_sync(cancel: tokio_util::sync::CancellationToken) {
+pub fn spawn_sync(cancel: tokio_util::sync::CancellationToken) {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(managed_config_sync_interval());
         interval.tick().await; // skip immediate first tick
@@ -388,6 +417,10 @@ pub(crate) fn spawn_sync(cancel: tokio_util::sync::CancellationToken) {
             // Clear a logged-out team's files before deciding to fetch, so
             // stale enforced policy never outlives the tick.
             clear_orphan();
+            // Raise the floor each tick so a long offline session keeps recording
+            // observed time; otherwise a later rollback could make an expired policy
+            // read valid.
+            bump_managed_rollback_floor();
 
             if !crate::config::is_managed_config_stale_for(&current_serving_identity())
                 || !is_fetch_enabled()
@@ -445,14 +478,32 @@ fn deployment_key_fingerprint(key: &str) -> String {
 
 /// Whether managed config fetching is enabled (env > config.toml > default true).
 /// Callers doing auto-fetch should check this; explicit user actions (grok setup) skip it.
+///
+/// Overlay-free: reads the raw config layers via
+/// [`crate::config::ConfigLayers::effective_config_base_without_overlay`] rather
+/// than the overlay-inclusive effective config, so a `GROK_CONFIG` overlay cannot
+/// suppress the requirements/managed-config sync (a policy-enforcement gate, like
+/// `remote_fetch`; see the overlay-free contract in `ConfigLayers::env_overlay`).
+/// Requirements/MDM still clamp through the base merge.
 pub fn is_fetch_enabled() -> bool {
     if let Some(v) = crate::agent::config::env_bool("GROK_MANAGED_CONFIG") {
         return v;
     }
-    crate::config::load_effective_config()
+    crate::config::ConfigLayers::load()
         .ok()
-        .and_then(|cfg| cfg.get("features")?.get("managed_config")?.as_bool())
+        .and_then(|layers| managed_config_enabled_from_layers(&layers))
         .unwrap_or(true)
+}
+
+/// `[features] managed_config` from the raw (overlay-free) config layers, or
+/// `None` when unset. Split out so the overlay-free contract is unit-testable
+/// without touching disk.
+fn managed_config_enabled_from_layers(layers: &crate::config::ConfigLayers) -> Option<bool> {
+    layers
+        .effective_config_base_without_overlay()
+        .get("features")?
+        .get("managed_config")?
+        .as_bool()
 }
 
 /// Fetch managed config + requirements and write to `~/.grok/`, trying the
@@ -535,7 +586,11 @@ async fn fetch_for_principal(
 
     if let Some(dk) = resolve_deployment_key() {
         let source = ManagedConfigSource::DeploymentKey;
-        match fetch_managed_config(&url, &dk, source, max_attempts).await {
+        // Echo binds to the deployment this key last synced (marker-bound; None
+        // on first sync or after a key rotation — then there is nothing to echo).
+        let echo_principal = crate::config::managed_deployment_id(&deployment_key_fingerprint(&dk));
+        match fetch_managed_config(&url, &dk, source, max_attempts, echo_principal.as_deref()).await
+        {
             // A rejected dk (stale env/config) must not starve a valid team
             // sign-in: fall through. Network/5xx do NOT — same unreachable
             // server, double the latency for nothing.
@@ -560,6 +615,7 @@ async fn fetch_for_principal(
             &auth.key,
             ManagedConfigSource::TeamOauth,
             max_attempts,
+            auth.team_id.as_deref(),
         )
         .await?;
         return Ok(FetchedConfig::Team {
@@ -652,6 +708,15 @@ fn apply_fetched(
     if let Some(verified) = verified {
         clear_squatting_dir(&home.join(xai_grok_config::signed_policy::SIGNATURE_SIDECAR_FILE));
         xai_grok_config::signed_policy::write_sidecar(&home, &verified.sidecar)?;
+        // Disk errors are fatal, like the policy sidecar's.
+        if let Some(claim_sidecar) =
+            verified_claim_sidecar(body, served_principal_of(&verified.payload))
+        {
+            clear_squatting_dir(
+                &home.join(xai_grok_config::signed_policy::MANAGED_IDENTITY_SIDECAR_FILE),
+            );
+            xai_grok_config::signed_policy::write_managed_identity_sidecar(&home, &claim_sidecar)?;
+        }
     }
     // Marker last, still under the lock: written post-release, a concurrent purge could
     // delete the files it describes. A squatting dir would fail the atomic rename forever.
@@ -675,8 +740,48 @@ fn apply_fetched(
     Ok(ApplyOutcome::Applied { wrote })
 }
 
+/// The principal a verified payload binds: `deployment_id`, else `team_id` (server parity).
+fn served_principal_of(payload: &xai_grok_config::signed_policy::SignedPayload) -> Option<&str> {
+    payload
+        .deployment_id
+        .as_deref()
+        .or(payload.team_id.as_deref())
+}
+
+/// The fetched claim envelope, if it verifies and binds to the served principal.
+/// `None` skips (old server / unverifiable / foreign): a bad claim must not fail
+/// the apply — it only hardens the policy sidecar.
+fn verified_claim_sidecar(
+    body: &ManagedConfigResponse,
+    served_principal: Option<&str>,
+) -> Option<xai_grok_config::signed_policy::SignatureEnvelope> {
+    use xai_grok_config::signed_policy::now_unix;
+    let sidecar = body.managed_identity_sidecar()?;
+    // Unclamped wall clock, like the policy verify: a fresh claim heals an inflated floor.
+    let claim = match xai_grok_config::signed_policy::verify_fetched_claim(&sidecar, now_unix()) {
+        Ok(claim) => claim,
+        Err(e) => {
+            tracing::debug!("is-managed claim did not verify; not persisting it: {e}");
+            return None;
+        }
+    };
+    if !claim_binds_to(&claim, served_principal) {
+        tracing::debug!("is-managed claim is bound to a different principal; not persisting it");
+        return None;
+    }
+    Some(sidecar)
+}
+
+/// The persist rule: a verified claim persists only when bound to the served principal.
+fn claim_binds_to(
+    claim: &xai_grok_config::signed_policy::ManagedIdentityClaim,
+    served_principal: Option<&str>,
+) -> bool {
+    served_principal == Some(claim.principal.as_str())
+}
+
 /// Evict the prior principal's policy artifacts on a confirmed switch; this apply then
-/// writes the new set and rebinds the marker. Includes the sidecar — a verification-inactive
+/// writes the new set and rebinds the marker. Includes the sidecars — a verification-inactive
 /// build must not leave the prior tenant's sidecar to read foreign-bound on a signing build.
 fn evict_prior_managed_config(home: &std::path::Path) {
     for name in MANAGED_ARTIFACT_FILES {
@@ -817,23 +922,45 @@ fn current_serving_identity_any_expiry() -> crate::config::ServingIdentity {
     serving_identity_from(active_team_id_any_expiry())
 }
 
+/// Disk-only classification for the startup `auth_mode` label.
+pub fn classify_auth_mode() -> xai_grok_telemetry::startup::AuthMode {
+    auth_mode(
+        resolve_deployment_key().is_some(),
+        &team_principal_signed_in(),
+    )
+}
+
+fn auth_mode(
+    has_deployment_key: bool,
+    signed_in_team: &std::io::Result<bool>,
+) -> xai_grok_telemetry::startup::AuthMode {
+    use xai_grok_telemetry::startup::AuthMode;
+    match (has_deployment_key, signed_in_team) {
+        (true, _) => AuthMode::Deployment,
+        (false, Ok(true)) => AuthMode::Team,
+        (false, Ok(false)) => AuthMode::Personal,
+        (false, Err(_)) => AuthMode::Unknown,
+    }
+}
+
 /// Best-effort session-start refresh: a bounded token refresh, then a bounded refetch only when the cache is
 /// hard-stale. NEVER fails the session — on failure it continues on cached / OS-protected policy.
 pub async fn ensure_managed_policy_present(
     auth_manager: &std::sync::Arc<crate::auth::AuthManager>,
 ) {
+    xai_grok_telemetry::startup::enter(xai_grok_telemetry::startup::StartupPhase::ManagedPolicy);
+    // Classify before the fetch gate: the label is disk-only and fetch-disabled
+    // users still deserve a real auth_mode split.
+    let has_deployment_key = resolve_deployment_key().is_some();
+    let signed_in_team = team_principal_signed_in();
+    xai_grok_telemetry::startup::set_auth_mode(auth_mode(has_deployment_key, &signed_in_team));
     // Gated on fetch-enabled, not `cfg!(test)` — that would diverge test behavior from production.
     if !is_fetch_enabled() {
         return;
     }
-    // Cheap disk-only gates before any network token refresh, so the boot path doesn't pay
-    // an `auth()` in the common cases. A personal user (no deploy key, and no team in
-    // `auth.json` even ignoring expiry) skips entirely; a usable identity whose cache isn't
-    // hard-stale also skips. Only an expired-but-refreshable team token (identity reads
-    // `None` before the refresh) or a hard-stale cache falls through to `auth()` below.
-    // `auth.json` unreadable (`Err`) is NOT treated as "no principal" — that would skip
-    // enforcement on a transient read blip.
-    if resolve_deployment_key().is_none() && matches!(team_principal_signed_in(), Ok(false)) {
+    // Disk-only gates first; `Err` reading `auth.json` is not "no principal",
+    // which would skip enforcement on a transient read blip.
+    if !has_deployment_key && matches!(&signed_in_team, Ok(false)) {
         return;
     }
     let identity = current_serving_identity();
@@ -880,6 +1007,8 @@ pub fn managed_policy_gate() -> Result<(), String> {
     }
     // Purge first so an offline team switch isn't misread as a substituted cache.
     purge_prior_tenant_on_identity_change();
+    // Raise the floor after the purge so a purged marker stays absent.
+    bump_managed_rollback_floor();
     managed_policy_gate_decision(
         managed_principal_present(),
         // Expiry-ignoring: a backdated auth.json must not resolve Team→None and relax binding.
@@ -916,6 +1045,22 @@ fn purge_prior_tenant_on_identity_change() {
             "identity changed; purging the prior tenant's managed config"
         );
         remove_managed_config_files(&home);
+    }
+}
+
+/// Floor tick (session start + background sync tick), best-effort under the
+/// managed-config lock — a failed tick must not refuse a session.
+fn bump_managed_rollback_floor() {
+    // Re-checked inside `bump_rollback_floor`; this early-out skips the lock I/O when dark.
+    if !xai_grok_config::signed_policy::verification_active() {
+        return;
+    }
+    let home = crate::util::grok_home::grok_home();
+    match try_lock_managed_config(&home) {
+        Some(_lock) => {
+            xai_grok_config::bump_rollback_floor(&home);
+        }
+        None => tracing::debug!("managed-config lock contended; skipping the floor tick"),
     }
 }
 

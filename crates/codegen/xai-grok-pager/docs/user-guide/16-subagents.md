@@ -148,7 +148,6 @@ The main agent calls the `spawn_subagent` tool. Its parameters:
 | `description`     | A short label for the task (3-5 words).                          |
 | `subagent_type`   | The agent type to launch. Defaults to `general-purpose`.         |
 | `background`       | Run the subagent in the background and return immediately with a subagent ID. Defaults to `false`. |
-| `capability_mode` | Restrict the subagent's tools: `read-only`, `read-write`, `execute`, or `all`. |
 | `isolation`       | `none` (shared workspace, the default) or `worktree` (isolated git worktree). |
 | `resume_from`     | Continue a completed subagent's conversation. Pass its subagent ID. |
 | `cwd`             | Working directory for the subagent. Mutually exclusive with `isolation: worktree`; ignored when `resume_from` is set (the resumed child inherits its source's directory). |
@@ -159,16 +158,14 @@ When you run a subagent in the background, retrieve its result later with `get_c
 
 ## Capability Modes
 
-A capability mode is an optional, coarse filter on a subagent's tools:
+Capability mode is not a spawn argument. A child's tools come from its **agent type** and any **role / definition default**. `general-purpose` is unrestricted (`all`). The built-in `explore` and `plan` types read, search, and run shell commands but cannot edit files.
 
 | Mode         | Read | Write | Execute | Description                                  |
 | ------------ | ---- | ----- | ------- | -------------------------------------------- |
 | `read-only`  | Yes  | No    | No      | Read, search, and inspect (also web search and LSP); no file edits or shell. |
 | `read-write` | Yes  | Yes   | No      | Read, plus create, edit, delete, and move files. No shell. |
 | `execute`    | Yes  | No    | Yes     | Read, plus run shell commands and background tasks. No file edits. |
-| `all`        | Yes  | Yes   | Yes     | Unrestricted tool access.                    |
-
-If you omit `capability_mode`, the subagent uses its agent type's toolset. The built-in `explore` and `plan` types read, search, and run shell commands but cannot edit files; `general-purpose` ships the full toolset.
+| `all`        | Yes  | Yes   | Yes     | Unrestricted tool access. Default for `general-purpose`. |
 
 ---
 
@@ -182,6 +179,40 @@ The `resume_from` parameter lets a new subagent continue where a completed subag
 2. Spawn a second subagent with `resume_from` set to the first subagent's ID, so it picks up with the full research context.
 
 The new subagent inherits the source's transcript, tool state, and model; its system prompt and tools are re-rendered from the current agent definition. The source must be completed (not running), belong to the current session, and use the same agent type.
+
+### MCP inheritance
+
+Subagents inherit the parent session’s **already-connected** MCP servers by default. That includes local stdio/HTTP servers and plugin-sourced agents (for example `my-plugin:reviewer`). The child discovers and calls those tools with `search_tool` / `use_tool` the same way the parent does.
+
+Control inheritance with agent frontmatter `mcpInheritance`:
+
+| Value | Effect |
+| ----- | ------ |
+| `all` (default if omitted) | Inherit every parent-connected MCP server |
+| `none` | Inherit no parent MCP servers |
+| `named: [server, …]` | Inherit only the listed server names |
+| `except: [server, …]` | Inherit all parent servers except the listed names |
+
+Example:
+
+```yaml
+---
+name: research-only
+description: Read MCP tools but not internal connectors
+tools: search_tool, use_tool, Read
+mcpInheritance:
+  except:
+    - internal-tools
+---
+```
+
+**Plugin agents** inherit parent MCP the same way. For security they still cannot:
+
+- Declare their own `mcpServers` in agent frontmatter (ignored with a warning)
+- Declare hooks in agent frontmatter
+- Set `permissionMode: bypassPermissions`
+
+Plugin-bundled MCP servers (plugin `.mcp.json`) still attach to the **parent/session** after the plugin is trusted — they are not a child-only frontmatter declaration. See [Plugins](09-plugins.md) and [MCP Servers](07-mcp-servers.md).
 
 ---
 
@@ -242,7 +273,7 @@ Your Own AI Build also discovers roles from `.grok/roles/*.toml` and personas fr
 
 Your Own AI Build shows running and finished work in side panes on the agent screen:
 
-- Press `Ctrl+B` to toggle the tasks pane, which lists active and completed subagents and background commands with their status.
+- Press `Ctrl+G` to toggle the tasks pane, which lists active and completed subagents and background commands with their status.
 - Press `Ctrl+T` to toggle the separate todo pane.
 
 To view the available agent types and personas, open the command palette with `Ctrl+P` and choose **Manage Agents** (`/config-agents`).
@@ -268,7 +299,7 @@ Press **Enter** (or Ctrl-F) on the block to open the subagent's full transcript.
 
 For blocking subagents the single entry updates its bullet color when the child finishes. For background ones, a follow-up `Subagent completed/failed/cancelled in Xs: "..."` block is appended.
 
-### Tasks pane (Ctrl+B)
+### Tasks pane (Ctrl+G)
 
 As noted above — grouped under "Subagents", with spinners, elapsed times, and quick access to kill or inspect.
 

@@ -18,6 +18,7 @@ use crate::theme::Theme;
 const FIRST_LINES: usize = 5;
 const LAST_LINES: usize = 3;
 
+use crate::appearance::AppearanceConfig;
 use xai_grok_tools::implementations::skills::types::skill_name_from_path;
 
 /// What kind of non-text media this read produced.
@@ -269,7 +270,9 @@ impl ReadToolCallBlock {
         let gutter_width = digit_count(base_line + raw_lines.len().saturating_sub(1));
         let content_width = width.saturating_sub(gutter_width + 2).max(20);
 
-        let gutter_style = Style::default().fg(theme.gray_dim);
+        // Use Theme::dim/primary so terminal-native (minimal) maps grays to
+        // SGR dim / default fg instead of raw gray_dim slots.
+        let gutter_style = theme.dim();
         let text_style = theme.primary();
 
         let syntect = get_syntect();
@@ -413,7 +416,7 @@ impl BlockContent for ReadToolCallBlock {
         }
     }
 
-    fn has_vpad(&self, _ctx: &BlockContext) -> bool {
+    fn has_vpad_for(&self, _appearance: &AppearanceConfig) -> bool {
         false
     }
 
