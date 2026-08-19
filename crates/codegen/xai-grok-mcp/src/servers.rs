@@ -1135,6 +1135,40 @@ const STDIO_SHUTDOWN_GRACE: std::time::Duration = std::time::Duration::from_secs
 /// Bounds transport setup for servers without OAuth support.
 const OAUTH_DISCOVERY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
+/// Is this MCP server URL on the local machine? Loopback servers skip OAuth
+/// discovery (see the Http arm in `create_client`).
+fn mcp_url_is_loopback(url: &str) -> bool {
+    url::Url::parse(url)
+        .ok()
+        .and_then(|u| u.host().map(|h| match h {
+            url::Host::Ipv4(ip) => ip.is_loopback(),
+            url::Host::Ipv6(ip) => ip.is_loopback(),
+            url::Host::Domain(d) => d.eq_ignore_ascii_case("localhost"),
+        }))
+        .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod loopback_tests {
+    use super::mcp_url_is_loopback;
+
+    #[test]
+    fn loopback_urls_detected() {
+        assert!(mcp_url_is_loopback("http://127.0.0.1:11435/mcp"));
+        assert!(mcp_url_is_loopback("http://localhost:8080/mcp"));
+        assert!(mcp_url_is_loopback("http://[::1]:9000/mcp"));
+        assert!(mcp_url_is_loopback("http://LOCALHOST/mcp"));
+    }
+
+    #[test]
+    fn remote_urls_are_not() {
+        assert!(!mcp_url_is_loopback("https://mcp.linear.app/sse"));
+        assert!(!mcp_url_is_loopback("http://192.168.1.10:8080/mcp"));
+        assert!(!mcp_url_is_loopback("http://127.0.0.1.evil.com/mcp"));
+        assert!(!mcp_url_is_loopback("not a url"));
+    }
+}
+
 /// Per-MCP-server config overrides from `_meta.mcpConfig` in session/new or session/load.
 #[derive(Debug, Clone, Default, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -4400,10 +4434,26 @@ pub async fn start_mcp_server(
                 .iter()
                 .any(|(k, _)| k.eq_ignore_ascii_case("authorization"));
 
+            // A loopback server is the user's own machine - OAuth discovery
+            // is a remote-service dance, and probing a local endpoint can
+            // stall the whole 5s budget (a spec-compliant Streamable HTTP
+            // server answers GET with an endless SSE stream, not a quick
+            // status). Skip it: if a local server ever answers 401, the
+            // failure is immediate and the fix is an Authorization header
+            // in its config - the same recovery discovery-timeout gives.
+            let is_loopback = mcp_url_is_loopback(&url);
+
             let auth_prep = if has_existing_auth {
                 tracing::debug!(
                     server = %name,
                     "Skipping OAuth discovery: server already has Authorization header"
+                );
+                HttpOauthPrep::NoOauthSupport
+            } else if is_loopback {
+                tracing::debug!(
+                    server = %name,
+                    %url,
+                    "Skipping OAuth discovery: loopback server (local-first; no remote auth dance)"
                 );
                 HttpOauthPrep::NoOauthSupport
             } else {
