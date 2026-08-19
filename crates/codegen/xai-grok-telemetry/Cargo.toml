@@ -12,6 +12,7 @@ default-bazel = []
 memory-log = []
 
 [dependencies]
+xai-grok-session-events = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

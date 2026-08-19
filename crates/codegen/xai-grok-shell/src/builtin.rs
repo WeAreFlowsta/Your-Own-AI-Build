@@ -94,6 +94,11 @@ fn resolve_skill_content(name: &str, raw: &str, grok_home: &std::path::Path) -> 
 /// Legacy/renamed bundled skills (see `LEGACY_BUNDLED_SKILL_NAMES`) are
 /// always cleaned up first so that old slash commands disappear after
 /// a rename (e.g. the previous `/check` after the move to `/check-work`).
+/// Upstream-named entry point (init.rs calls this): same extraction.
+pub fn extract_builtin_files(grok_home: &std::path::Path) {
+    extract_bundled_files(grok_home)
+}
+
 pub fn extract_bundled_files(grok_home: &std::path::Path) {
     // Always remove legacy/renamed bundled skills first (e.g. the old
     // `check` directory after the rename to `check-work`). This runs on
@@ -444,6 +449,44 @@ mod tests {
         for &(_, hash) in FORMER_PLATFORM_SKILL_HASHES {
             assert_eq!(hash.len(), 64);
             assert!(hash.bytes().all(|b| b.is_ascii_hexdigit()));
+        }
+    }
+}
+
+/// Remove directories for legacy/renamed bundled skills (e.g. old `check`
+/// after it was renamed to `check-work`).
+///
+/// Called on every startup from `extract_bundled_files`. Safe and idempotent.
+///
+/// Key guarantees (see `LEGACY_BUNDLED_SKILL_NAMES` docs for details):
+/// - If a name is still present in `BUNDLED_SKILLS`, we deliberately skip
+///   deletion. This allows safe re-use of a skill name in the future.
+/// - If the target directory no longer exists, this is a trivial no-op.
+fn remove_legacy_bundled_skills(grok_home: &std::path::Path) {
+    remove_legacy_skills(grok_home, LEGACY_BUNDLED_SKILL_NAMES, BUNDLED_SKILLS);
+}
+
+/// Core implementation, extracted for testability.
+fn remove_legacy_skills(
+    grok_home: &std::path::Path,
+    legacy_names: &[&str],
+    bundled_skills: &[(&str, &str)],
+) {
+    for name in legacy_names {
+        // Safety: Never delete a name that we are currently shipping.
+        // This protects against re-introducing a skill name that still has
+        // an entry in the legacy list.
+        if bundled_skills.iter().any(|(n, _)| *n == *name) {
+            continue;
+        }
+
+        let dir = grok_home.join("skills").join(name);
+        if dir.exists() {
+            if let Err(e) = std::fs::remove_dir_all(&dir) {
+                tracing::debug!(error = %e, name, "Failed to remove legacy bundled skill");
+            } else {
+                tracing::debug!(name, "Removed legacy bundled skill directory");
+            }
         }
     }
 }

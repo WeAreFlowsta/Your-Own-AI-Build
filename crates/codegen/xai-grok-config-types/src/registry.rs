@@ -124,7 +124,10 @@ pub const FEATURES: &[FeatureSpec] = &[
         key: "voice_mode",
         path: "features.voice_mode",
         env: "GROK_VOICE_MODE",
-        default_enabled: true,
+        // Voice dictation streams audio to the upstream vendor's STT API;
+        // off by default in this local-first build (opt back in via
+        // config/env once pointed at your own endpoint).
+        default_enabled: false,
         remote: Some(|settings| settings.voice_mode_enabled),
     },
     FeatureSpec {

@@ -4,7 +4,7 @@
 //!
 //! These structs were extracted from `xai-grok-shell` so they can be
 //! reused across binaries (TUI, sampler) without dragging the shell HTTP /
-//! Mixpanel client along. The `CompactionScope` helper that drives paired
+//! product-analytics client along. The `CompactionScope` helper that drives paired
 //! `compaction_triggered`/`compaction_completed` emission stays in shell --
 //! it calls `super::log_event` directly.
 
@@ -12,6 +12,9 @@ use serde::Serialize;
 
 use super::enums::PermissionMode;
 pub use super::enums::PrCreationSource;
+
+mod permission_analytics;
+pub use permission_analytics::*;
 
 /// Binds a product event name to a struct. Implement via `telemetry_event!` below.
 pub trait TelemetryEvent: Serialize + Send + 'static {
@@ -64,6 +67,8 @@ pub enum ContextualTipKind {
     SmallScreen,
     /// Double-click fold/nav path → tip to enable Word select in settings.
     WordSelect,
+    /// SSH session without `grok wrap` → tip to wrap the ssh command locally.
+    SshWrap,
 }
 
 #[derive(Serialize, Clone, Copy)]
@@ -101,6 +106,94 @@ pub enum AccessKind {
     Grep,
     Mcp,
     Web,
+}
+
+/// Outcome of one CLI binary install/update attempt.
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CliUpdateOutcome {
+    Success,
+    Failed,
+}
+
+/// Why a CLI binary install/update failed. Smoke kinds are post-download
+/// `--version` checks; other kinds cover download/activation/misc errors.
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CliUpdateErrorKind {
+    SmokeTimeout,
+    SmokeNonzero,
+    SmokeSpawn,
+    Download,
+    Activate,
+    Other,
+}
+
+/// Installer that performed the attempt. Wire values match the persisted
+/// installer strings; `Other` bounds unknown persisted values.
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CliUpdateInstaller {
+    #[serde(rename = "npm")]
+    Npm,
+    #[serde(rename = "gh-release")]
+    GhRelease,
+    #[serde(rename = "internal")]
+    Internal,
+    #[serde(rename = "other")]
+    Other,
+}
+
+impl CliUpdateInstaller {
+    /// Kept next to the wire values above so they cannot drift apart.
+    pub fn from_installer_str(installer: &str) -> Self {
+        match installer {
+            "npm" => Self::Npm,
+            "gh-release" => Self::GhRelease,
+            "internal" => Self::Internal,
+            _ => Self::Other,
+        }
+    }
+}
+
+/// What kicked off the install/update. Travels across the process boundary
+/// as `--trigger=<value>`; [`CliUpdateTrigger::as_str`] and `FromStr` are
+/// the one rendering (round-trip pinned with the wire values in tests).
+///
+/// Volume caveat: one-shot `grok update` resolves telemetry from disk+env
+/// only, so `user_command` under-reports relative to the in-process
+/// `leader_converge` — the triggers are not directly comparable.
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CliUpdateTrigger {
+    /// A human ran `grok update` or accepted an update prompt.
+    UserCommand,
+    /// TUI/stdio launch check spawned a detached update child.
+    AutoBackground,
+    /// The leader daemon's hourly in-process converge.
+    LeaderConverge,
+}
+
+impl CliUpdateTrigger {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::UserCommand => "user_command",
+            Self::AutoBackground => "auto_background",
+            Self::LeaderConverge => "leader_converge",
+        }
+    }
+}
+
+impl std::str::FromStr for CliUpdateTrigger {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "user_command" => Ok(Self::UserCommand),
+            "auto_background" => Ok(Self::AutoBackground),
+            "leader_converge" => Ok(Self::LeaderConverge),
+            other => Err(format!("unknown update trigger: {other}")),
+        }
+    }
 }
 
 #[derive(Serialize, Clone, Copy)]
@@ -144,6 +237,7 @@ pub enum Outcome {
 pub enum HookOutcome {
     Success,
     Error,
+    Blocked,
 }
 
 /// Outcome of one `PreToolUse` gate callback. Only `Denied` blocks the tool; the rest
@@ -200,6 +294,14 @@ pub enum PlanModeState {
     Inactive,
     Pending,
     Active,
+}
+
+#[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MemoryRetrievalMode {
+    Disabled,
+    FtsOnly,
+    Hybrid,
 }
 
 #[derive(Serialize, Clone, Copy)]
@@ -286,14 +388,30 @@ pub struct LoginCompleted {
     pub mid_session: bool,
 }
 
-/// A login flow failed. `error` is the raw error message from the auth flow.
+/// How a login attempt's HTTP request failed.
+#[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LoginFailureKind {
+    /// `is_connect`: a dead TCP connect *or* a TLS handshake killed
+    /// mid-flight. `os_error` tells them apart.
+    TransportConnect,
+    /// In-flight request cut short: reset, close, timeout, body phase.
+    TransportInterrupted,
+    /// Client-side request construction / redirect policy defect.
+    TransportPermanent,
+    Decode,
+}
+
+/// One per failed login attempt, emitted by the login funnel so a retried
+/// request can't inflate the count. Failures that never reached HTTP (user
+/// backed out, loopback bind, id_token validation) are not reported.
 #[derive(Serialize)]
 pub struct LoginFailed {
-    pub method: String,
-    pub mode: String,
+    pub error_kind: LoginFailureKind,
+    /// OS code from the failure's cause chain (54/104 ECONNRESET, 10054 on
+    /// Windows).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
-    pub duration_ms: u64,
+    pub os_error: Option<i32>,
 }
 
 /// The user backed out of the login funnel. `stage` is "picker",
@@ -330,7 +448,7 @@ pub struct PlanModeToggled {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// One contextual-hint impression or acceptance: per tip, how often it is
-/// shown vs. acted on (the `action` property drives the Mixpanel funnel).
+/// shown vs. acted on (the `action` property drives the product-analytics funnel).
 #[derive(Serialize)]
 pub struct ContextualTip {
     pub tip: ContextualTipKind,
@@ -375,39 +493,6 @@ pub struct YoloToggled {
 pub struct SlashCommandUsed {
     pub command: String,
     pub args_provided: bool,
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Permissions
-// ─────────────────────────────────────────────────────────────────────────────
-
-#[derive(Serialize)]
-pub struct PermissionPrompted {
-    pub tool_name: String,
-    pub access_kind: AccessKind,
-    pub permission_mode: PermissionMode,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub subagent_session_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub subagent_type: Option<String>,
-}
-
-#[derive(Serialize)]
-pub struct PermissionDecisionPayload {
-    pub tool_name: String,
-    pub access_kind: AccessKind,
-    pub decision: PermissionOutcome,
-    pub wait_ms: u64,
-    pub permission_mode: PermissionMode,
-    /// Decision provenance (`config`/`user_reject`/`user_abort`/…), from
-    /// shell's `permission_decision_source`. Additive analytics-visible field, added
-    /// for the external `tool_decision` event (design ‡ footnote).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub subagent_session_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub subagent_type: Option<String>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -521,11 +606,45 @@ pub struct CompactionRetryDegraded {
 // Subagents
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Which spawn path owns a subagent's lifecycle.
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SubagentOwnerKind {
+    Task,
+    Workflow,
+    SchedulerLoop,
+}
+
+/// Which admission limit a spawn ran into.
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SubagentLimitKind {
+    SessionConcurrent,
+    WorkflowRunConcurrent,
+}
+
+/// What happened to the spawn that hit a limit.
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SubagentLimitDisposition {
+    Queued,
+    Failed,
+}
+
 #[derive(Serialize)]
 pub struct SubagentLaunched {
     pub subagent_id: String,
     pub parent_session_id: String,
     pub subagent_type: String,
+    pub owner: SubagentOwnerKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workflow_run_id: Option<String>,
+    /// Time parked in the admission queue; absent if admitted immediately.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub queued_ms: Option<u64>,
+    /// The session's running non-workflow subagents at launch, including
+    /// this one; max per session is the session's peak concurrency.
+    pub session_running: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub persona: Option<String>,
     pub fork_context: bool,
@@ -541,11 +660,139 @@ pub struct SubagentLaunched {
 pub struct SubagentCompleted {
     pub subagent_id: String,
     pub parent_session_id: String,
+    pub owner: SubagentOwnerKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workflow_run_id: Option<String>,
     pub outcome: Outcome,
     pub duration_ms: u64,
     pub tool_calls: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tokens_used: Option<u64>,
+}
+
+#[derive(Serialize)]
+pub struct SubagentLimitHit {
+    pub parent_session_id: String,
+    pub limit_kind: SubagentLimitKind,
+    pub disposition: SubagentLimitDisposition,
+    pub limit: u64,
+    pub running: u32,
+    /// A queued spawn counts itself; absent for the workflow pool.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub queued: Option<u32>,
+    pub owner: SubagentOwnerKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workflow_run_id: Option<String>,
+}
+
+impl SubagentLimitHit {
+    /// The session pool's producer.
+    pub fn session_concurrent(
+        parent_session_id: String,
+        disposition: SubagentLimitDisposition,
+        limit: u64,
+        running: u32,
+        queue_depth: u32,
+        owner: SubagentOwnerKind,
+    ) -> Self {
+        Self {
+            parent_session_id,
+            limit_kind: SubagentLimitKind::SessionConcurrent,
+            disposition,
+            limit,
+            running,
+            queued: Some(queue_depth),
+            owner,
+            workflow_run_id: None,
+        }
+    }
+
+    /// The workflow pool's producer: waiters block on the run's semaphore,
+    /// so there is no queue depth to report.
+    pub fn workflow_run_concurrent(
+        parent_session_id: String,
+        workflow_run_id: String,
+        limit: u64,
+        slots_in_use: u32,
+    ) -> Self {
+        Self {
+            parent_session_id,
+            limit_kind: SubagentLimitKind::WorkflowRunConcurrent,
+            disposition: SubagentLimitDisposition::Queued,
+            limit,
+            running: slots_in_use,
+            queued: None,
+            owner: SubagentOwnerKind::Workflow,
+            workflow_run_id: Some(workflow_run_id),
+        }
+    }
+}
+
+/// Where a workflow script came from.
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkflowSourceKind {
+    Builtin,
+    File,
+    Inline,
+}
+
+/// One workflow execution episode began (fresh launch or resume).
+#[derive(Serialize)]
+pub struct WorkflowRunStarted {
+    pub run_id: String,
+    pub parent_session_id: String,
+    pub source: WorkflowSourceKind,
+    /// Built-in workflow names only; user script names stay local.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workflow_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_budget: Option<u64>,
+    /// Effective cap, after the CPU clamp.
+    pub max_concurrent_agents: u32,
+    pub resumed: bool,
+}
+
+/// The run tracker's status labels, plus `superseded` for an episode whose
+/// run a quick resume took over.
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkflowRunEndStatus {
+    Active,
+    UserPaused,
+    BackOffPaused,
+    NoProgressPaused,
+    InfraPaused,
+    Blocked,
+    BudgetLimited,
+    Interrupted,
+    Complete,
+    Failed,
+    Cancelled,
+    Superseded,
+}
+
+#[derive(Serialize)]
+pub struct WorkflowRunEnded {
+    pub run_id: String,
+    pub parent_session_id: String,
+    pub status: WorkflowRunEndStatus,
+    /// Cumulative across the run's episodes.
+    pub duration_ms: u64,
+    /// Cumulative across the run's episodes.
+    pub agents_used: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_budget: Option<u64>,
+    /// This episode only.
+    pub agents_failed: u32,
+    /// This episode only.
+    pub peak_concurrent_agents: u32,
+    /// This episode only.
+    pub slot_waits: u32,
+    /// This episode only.
+    pub slot_wait_ms_total: u64,
+    /// This episode only.
+    pub slot_wait_ms_max: u64,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -748,11 +995,24 @@ pub struct SkillRemoved {
     pub success: bool,
 }
 
+#[derive(Serialize, Clone, Copy, strum::IntoStaticStr)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+pub enum SkillTrigger {
+    /// The user ran `/skill-name`, at turn start or mid-turn.
+    SlashCommand,
+    /// The model read the skill's `SKILL.md` with `read_file`.
+    SkillMdRead,
+    /// The model called the skill tool, which only vendor-compat toolsets register.
+    SkillTool,
+}
+
 #[derive(Serialize)]
 pub struct SkillDispatched {
     pub skill_name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plugin_source: Option<String>,
+    pub trigger: SkillTrigger,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -815,6 +1075,7 @@ pub struct SessionHarness {
     pub hook_names: Vec<String>,
     pub agents_md_dir_names: Vec<String>,
     pub memory_enabled: bool,
+    pub memory_retrieval_mode: MemoryRetrievalMode,
     /// Whether the session cwd is inside a git repo (same value `SessionNew`
     /// carries). Additive analytics-visible field, added for the external
     /// `session_start` event (design ‡ footnote).
@@ -859,7 +1120,7 @@ pub struct PromptSubmitted {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub screen_mode: Option<String>,
     /// Raw prompt text for the external stream's `OTEL_LOG_USER_PROMPTS`
-    /// gate **only**. `#[serde(skip)]`: never serialized to product events/Mixpanel;
+    /// gate **only**. `#[serde(skip)]`: never serialized to product events/analytics;
     /// dropped at external emit time unless the gate is on (then capped at
     /// 60 KB and secret-scrubbed).
     #[serde(skip)]
@@ -969,6 +1230,66 @@ pub struct NonGitDecisionEvent {
 // Prompt Latency (every turn)
 // ---------------------------------------------------------------------------
 
+/// Why a [`ProcessResourceUsage`] was sampled, so a mid-life reading is not
+/// read as a post-teardown one.
+#[derive(Serialize, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum ResourceReportTrigger {
+    SessionClose,
+    Periodic,
+}
+
+/// The ceilings this process runs under. The denominator for
+/// `ProcessResourceUsage`: usage against limits is headroom.
+#[derive(Serialize)]
+pub struct ProcessResourceLimits {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nofile_soft: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nofile_hard: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nproc_soft: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nproc_hard: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub available_parallelism: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cgroup_pids_max: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cgroup_memory_max: Option<String>,
+}
+
+/// Emitted when the jemalloc heap monitor crosses a configured threshold.
+/// The acute signal that a build is growing without bound.
+#[derive(Serialize)]
+pub struct HeapThresholdCrossed {
+    pub threshold_bytes: u64,
+    pub resident_bytes: u64,
+    pub allocated_bytes: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rss_peak_bytes: Option<u64>,
+}
+
+/// What this process still holds just after a session was removed. Aggregated
+/// per release, a rising tail is a leak; `resident_sessions` separates leader
+/// mode, where one process serves many sessions and a leak compounds.
+#[derive(Serialize)]
+pub struct ProcessResourceUsage {
+    pub trigger: ResourceReportTrigger,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rss_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peak_rss_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub footprint_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub threads: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub open_files: Option<u64>,
+    pub resident_sessions: usize,
+    pub session_threads: usize,
+}
+
 #[derive(Serialize)]
 pub struct PromptLatency {
     pub turn_index: u32,
@@ -999,6 +1320,20 @@ pub struct TurnCompleted {
     pub error_category: Option<String>,
 }
 
+/// Model issued a shell tool call whose command is `true` (keepalive thrash signal).
+#[derive(Serialize)]
+pub struct ShellTrueNoop {
+    pub tool_name: String,
+}
+
+/// Harness hard-stopped a turn after identical tool thrash (silent EndTurn).
+#[derive(Serialize)]
+pub struct ActionStationarityStop {
+    pub true_noop: bool,
+    pub run_len: u32,
+    pub tool_name: String,
+}
+
 // ---------------------------------------------------------------------------
 // Tool Calls
 // ---------------------------------------------------------------------------
@@ -1006,10 +1341,10 @@ pub struct TurnCompleted {
 #[derive(Serialize)]
 pub struct ToolCallCompleted {
     pub tool_name: String,
-    pub outcome: xai_file_utils::events::types::ToolOutcome,
+    pub outcome: xai_grok_session_events::types::ToolOutcome,
     pub duration_ms: u64,
     /// Primary file path of the call, for the external stream only
-    /// (`#[serde(skip)]`: never serialized to product events/Mixpanel). Always reduced to
+    /// (`#[serde(skip)]`: never serialized to product events/analytics). Always reduced to
     /// `file_extension`; the full path rides the `OTEL_LOG_TOOL_DETAILS` gate.
     #[serde(skip)]
     pub file_path: Option<String>,
@@ -1080,6 +1415,32 @@ pub struct SessionEnded {
 // Pager events (called from xai-grok-pager via log_event)
 // ---------------------------------------------------------------------------
 
+/// Connect outcome: the `agent_connect` product event, plus OTEL metrics.
+#[derive(Serialize)]
+pub struct AgentConnect {
+    pub connect_target: crate::startup::AgentKind,
+    pub outcome: crate::startup::StartupOutcome,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stuck_in: Option<String>,
+    pub phases: String,
+    pub phase_durations_ms: std::collections::BTreeMap<String, u64>,
+    pub elapsed_ms: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout_secs: Option<u64>,
+    pub embedded_fallback: bool,
+    pub auth_mode: crate::startup::AuthMode,
+}
+
+/// End to end startup: process start to a usable session, with the phase
+/// breakdown that accounts for it.
+#[derive(Serialize)]
+pub struct StartupComplete {
+    pub total_ms: u64,
+    pub outcome: crate::startup::StartupOutcome,
+    pub phases: String,
+    pub auth_mode: crate::startup::AuthMode,
+}
+
 #[derive(Serialize)]
 pub struct PagerSlashCommand {
     pub command_name: String,
@@ -1089,33 +1450,6 @@ pub struct PagerSlashCommand {
 #[derive(Serialize)]
 pub struct PlanSubmit {
     pub action: String,
-}
-
-/// Which option the user chose in the project-directory picker (shown on the
-/// first prompt when Your Own AI Build is launched from a non-project directory).
-#[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum ProjectPickerOutcome {
-    RecentProject,
-    CustomPath,
-    CurrentDir,
-    DontAskAgain,
-    Dismissed,
-}
-
-impl ProjectPickerOutcome {
-    pub fn picked_project(self) -> bool {
-        matches!(self, Self::RecentProject | Self::CustomPath)
-    }
-}
-
-/// User resolved the project-directory picker. `picked_project` is the headline
-/// signal: did they actually choose a project directory?
-#[derive(Serialize)]
-pub struct ProjectPickerSelected {
-    pub outcome: ProjectPickerOutcome,
-    pub picked_project: bool,
-    pub project_dir_options: usize,
 }
 
 // ---------------------------------------------------------------------------
@@ -1188,6 +1522,34 @@ pub struct AnnouncementCtaClicked {
     pub source: AnnouncementCtaSurface,
 }
 
+#[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CodingDataConsentSource {
+    PrivacyBanner,
+    Settings,
+}
+
+#[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CodingDataConsentChoice {
+    OptIn,
+    OptOut,
+}
+
+impl CodingDataConsentChoice {
+    pub fn from_opted_in(opted_in: bool) -> Self {
+        if opted_in { Self::OptIn } else { Self::OptOut }
+    }
+}
+
+#[derive(Serialize)]
+pub struct CodingDataConsentSelected {
+    pub source: CodingDataConsentSource,
+    pub choice: CodingDataConsentChoice,
+    pub previous_choice: CodingDataConsentChoice,
+    pub changed: bool,
+}
+
 /// Flat snapshot of the terminal environment for telemetry.
 ///
 /// Shared across pager events so terminal fields are typed once.
@@ -1201,6 +1563,15 @@ pub struct TerminalTelemetry {
     pub term_var: String,
     pub tmux_version: String,
     pub xtversion: String,
+    /// Raw, as its source reported it — shapes vary (`"3.5.6"`,
+    /// `"20240203-110809-5046fc22"`, `"7402"`). Empty when unknown.
+    pub term_version: String,
+    pub term_version_source: String,
+    /// The Kitty protocol was negotiated *without* `REPORT_EVENT_TYPES` because
+    /// `term_version` identified a build that mis-encodes key releases
+    /// (Alacritty ≤ 0.14.x). A field rather than its own event so the affected
+    /// population always has a denominator.
+    pub kitty_event_types_withheld: bool,
     pub host_os: String,
     pub display_server: String,
     pub modifier_cmd_fate: String,
@@ -1303,10 +1674,15 @@ pub struct ClipboardCopy {
     pub data_control: bool,
     pub tmux_ok: bool,
     pub osc52_ok: bool,
-    /// `native_ok || tmux_ok || osc52_ok` where tmux/osc52 are real leg outcomes.
+    /// Evidence classification: `confirmed` | `unverified` | `failed`.
+    pub delivery: &'static str,
+    /// An explicit `grok wrap` OSC 52 sink was active.
+    pub osc52_sink: bool,
+    /// The process was inside a container without a display server.
+    pub container_no_display: bool,
+    /// Historical boolean projection: true unless `delivery == failed`.
     pub reported_success: bool,
-    /// UX toast branch (route-shaped, not leg-shaped): `copied` | `copied_tmux` |
-    /// `copied_osc_remote` | `copied_osc_container` | `failed`.
+    /// Exact UX toast branch selected by the environment policy.
     pub toast_kind: &'static str,
     pub duration_ms: u64,
 }
@@ -1339,6 +1715,31 @@ pub struct DashboardOpened {
     pub agents: usize,
     pub subagents: usize,
     pub leader_mode: bool,
+}
+
+/// User pressed an allowlisted registry shortcut.
+///
+/// **Product contract (authoritative):** intent-only telemetry for the
+/// bindings that can own **Ctrl+L**. Emits when the chord resolves to the
+/// action, whether the effect succeeds, defers, or soft-no-ops. Soft no-ops
+/// still count as intent.
+///
+/// Allowlist: `interject_prompt` (VS Code family often Ctrl+L; elsewhere the
+/// interject/send-now chord) and `open_extensions` (Ctrl+L on other
+/// terminals). Absence of other actions is not “unused.” Expand the allowlist
+/// deliberately; this is not full-registry coverage.
+///
+/// Fields are content-free. `key` is a platform-stable encoding (`Ctrl+L`,
+/// not locale-specific `Cmd`/`Opt` or mixed case). `context` is a surface
+/// label (`prompt_focused`, `agent_screen`, `queue`, …).
+#[derive(Serialize)]
+pub struct ShortcutUsed {
+    /// Stable chord encoding (`Ctrl+L`, `Ctrl+Enter`, …).
+    pub key: String,
+    /// Allowlisted action id (`interject_prompt`, `open_extensions`).
+    pub action: String,
+    /// Surface label (`prompt_focused`, `agent_screen`, `queue`, …).
+    pub context: String,
 }
 
 #[derive(Serialize)]
@@ -1482,7 +1883,7 @@ pub struct CreditLimitUpsellClicked {
 /// Emitted when a previously access-gated user re-authenticates and the gate
 /// is lifted — i.e. they subscribed (externally on grok.com) and came back.
 /// This is the actual conversion signal for SuperGrok Heavy subscriptions
-/// attributed to Your Own AI Build: the user saw the gate in Your Own AI Build, went and
+/// attributed to Grok Build: the user saw the gate in Grok Build, went and
 /// paid, then returned with access.
 #[derive(Serialize)]
 pub struct SubscriptionActivated {
@@ -1490,7 +1891,7 @@ pub struct SubscriptionActivated {
     pub auth_method: Option<String>,
     /// Whether the subscribe CTA was shown in this session before the gate
     /// was lifted (`access_gate_shown_logged`). When `true`, the conversion
-    /// is strongly attributable to Your Own AI Build's upsell surface.
+    /// is strongly attributable to Grok Build's upsell surface.
     pub upsell_shown_this_session: bool,
 }
 
@@ -1504,6 +1905,9 @@ pub enum ManualAuthReason {
     RefreshTokenRejected,
     /// Token type has no refresh authority (API key / legacy / OIDC sans refresh token).
     NoRefreshAuthority,
+    /// The operator's auth-provider command could not mint a credential
+    /// unattended, so only an interactive run of it can restore the session.
+    ProviderInteractiveRequired,
     RecoveryExhausted,
     TokenExpiredNoRefresh,
     /// Recovered session violated the `force_login_team_uuid` pin.
@@ -1556,11 +1960,56 @@ pub struct ManualAuth {
     pub principal: Option<String>,
 }
 
+/// Release channel bucketed to the known set: channel is free-text user
+/// config, and recording it verbatim would leak private mirror names.
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CliUpdateChannel {
+    Stable,
+    Alpha,
+    Enterprise,
+    Other,
+}
+
+impl CliUpdateChannel {
+    /// Empty means stable — the installers' default (mirrors the updater's
+    /// `is_stable_channel`).
+    pub fn from_channel_str(raw: &str) -> Self {
+        match raw.trim() {
+            "" | "stable" => Self::Stable,
+            "alpha" => Self::Alpha,
+            "enterprise" => Self::Enterprise,
+            _ => Self::Other,
+        }
+    }
+}
+
+/// One attempt to download + activate a new `grok` binary. Analytics name:
+/// `grok-shell-cli_update`. Emitted on failure too; failures carry the
+/// typed `error_kind` only — freeform strings leak home paths.
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct CliUpdate {
+    pub outcome: CliUpdateOutcome,
+    pub trigger: CliUpdateTrigger,
+    pub from_version: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to_version: Option<String>,
+    pub channel: CliUpdateChannel,
+    pub installer: CliUpdateInstaller,
+    /// `{os}-{arch}` from platform detection — closed by construction.
+    pub platform: String,
+    pub rosetta: bool,
+    pub duration_ms: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_kind: Option<CliUpdateErrorKind>,
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Event name bindings
 // ─────────────────────────────────────────────────────────────────────────────
 
 telemetry_event!(ManualAuth, "manual_auth");
+telemetry_event!(CliUpdate, "cli_update");
 
 telemetry_event!(Login, "login", external = crate::external::schema::map_auth);
 telemetry_event!(LoginPickerShown, "login_picker_shown");
@@ -1611,6 +2060,9 @@ telemetry_event!(
     "subagent_completed",
     external = crate::external::schema::map_subagent_completed
 );
+telemetry_event!(SubagentLimitHit, "subagent_limit_hit");
+telemetry_event!(WorkflowRunStarted, "workflow_run_started");
+telemetry_event!(WorkflowRunEnded, "workflow_run_ended");
 telemetry_event!(
     ModelSwitched,
     "model_switched",
@@ -1687,11 +2139,16 @@ telemetry_event!(MultiAgentDiscard, "multi_agent_discard");
 telemetry_event!(RepoChanges, "repo_changes");
 telemetry_event!(NonGitDecisionEvent, "non_git_decision");
 telemetry_event!(PromptLatency, "prompt_latency");
+telemetry_event!(HeapThresholdCrossed, "heap_threshold_crossed");
+telemetry_event!(ProcessResourceUsage, "process_resource_usage");
+telemetry_event!(ProcessResourceLimits, "process_resource_limits");
 telemetry_event!(
     TurnCompleted,
     "turn_completed",
     external = crate::external::schema::map_turn_completed
 );
+telemetry_event!(ShellTrueNoop, "shell_true_noop");
+telemetry_event!(ActionStationarityStop, "action_stationarity_stop");
 telemetry_event!(
     ToolCallCompleted,
     "tool_call_completed",
@@ -1709,13 +2166,23 @@ telemetry_event!(
     "session_ended",
     external = crate::external::schema::map_session_end
 );
+telemetry_event!(
+    AgentConnect,
+    "agent_connect",
+    external = crate::external::schema::map_agent_connect
+);
+telemetry_event!(
+    StartupComplete,
+    "startup_complete",
+    external = crate::external::schema::map_startup_complete
+);
 telemetry_event!(PagerSlashCommand, "pager_slash_command");
 telemetry_event!(PlanSubmit, "plan_submit");
-telemetry_event!(ProjectPickerSelected, "project_picker_selected");
 telemetry_event!(SuperGrokUpsellShown, "supergrok_upsell_shown");
 telemetry_event!(SuperGrokUpsellClicked, "supergrok_upsell_clicked");
 telemetry_event!(AnnouncementCtaShown, "announcement_cta_shown");
 telemetry_event!(AnnouncementCtaClicked, "announcement_cta_clicked");
+telemetry_event!(CodingDataConsentSelected, "coding_data_consent_selected");
 telemetry_event!(TerminalTelemetry, "terminal_context");
 telemetry_event!(DisplayRefreshProbe, "display_refresh_probe");
 telemetry_event!(BackspaceNoEffect, "backspace_no_effect");
@@ -1727,6 +2194,7 @@ telemetry_event!(DashboardOpened, "dashboard_opened");
 telemetry_event!(DashboardClosed, "dashboard_closed");
 telemetry_event!(DashboardAgentAttached, "dashboard_agent_attached");
 telemetry_event!(DashboardAgentLaunched, "dashboard_agent_launched");
+telemetry_event!(ShortcutUsed, "shortcut_used");
 telemetry_event!(
     RateLimitHit,
     "rate_limit_hit",
@@ -1788,10 +2256,6 @@ telemetry_event!(
 );
 telemetry_event!(crate::memory_telemetry::MemorySearch, "memory_search");
 telemetry_event!(
-    crate::memory_telemetry::MemorySearchEmpty,
-    "memory_search_empty"
-);
-telemetry_event!(
     crate::memory_telemetry::MemoryFlushStart,
     "memory_flush_start"
 );
@@ -1813,6 +2277,80 @@ telemetry_event!(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn terminal_telemetry_fixture() -> TerminalTelemetry {
+        TerminalTelemetry {
+            brand: "Unknown".into(),
+            multiplexer: "none".into(),
+            is_ssh: true,
+            is_byobu: false,
+            term_var: "xterm-256color".into(),
+            tmux_version: "".into(),
+            xtversion: "".into(),
+            term_version: "".into(),
+            term_version_source: "none".into(),
+            kitty_event_types_withheld: false,
+            host_os: "linux".into(),
+            display_server: "unknown".into(),
+            modifier_cmd_fate: "unknown".into(),
+            modifier_opt_fate: "unknown".into(),
+            enter_modifier_fate: "unknown".into(),
+            hyperlink_osc8: "unknown".into(),
+            hyperlink_skip_reason: "none".into(),
+            clipboard_route: "native+osc52".into(),
+            clipboard_native_tool: "arboard".into(),
+            clipboard_data_control: "n/a".into(),
+        }
+    }
+
+    #[test]
+    fn memory_retrieval_mode_serializes_as_closed_snake_case_values() {
+        let modes = [
+            MemoryRetrievalMode::Disabled,
+            MemoryRetrievalMode::FtsOnly,
+            MemoryRetrievalMode::Hybrid,
+        ];
+        assert_eq!(
+            modes.map(|mode| serde_json::to_value(mode).unwrap()),
+            ["disabled", "fts_only", "hybrid"]
+        );
+    }
+
+    #[test]
+    fn clipboard_copy_serialization_preserves_boolean_and_adds_delivery_evidence() {
+        for delivery in ["confirmed", "unverified", "failed"] {
+            let value = serde_json::to_value(ClipboardCopy {
+                terminal: terminal_telemetry_fixture(),
+                source: "copy_text",
+                text_len: 12,
+                route_native: true,
+                route_tmux: false,
+                route_osc52: true,
+                route_label: "native+osc52".into(),
+                cli_tools_tried: String::new(),
+                cli_ok_tools: String::new(),
+                cli_ok: false,
+                arboard_ok: false,
+                data_control: false,
+                tmux_ok: false,
+                osc52_ok: true,
+                delivery,
+                osc52_sink: false,
+                container_no_display: false,
+                reported_success: delivery != "failed",
+                toast_kind: "unverified_osc_remote",
+                duration_ms: 1,
+            })
+            .unwrap();
+            assert_eq!(value["delivery"], serde_json::json!(delivery));
+            assert_eq!(
+                value["reported_success"],
+                serde_json::Value::Bool(delivery != "failed")
+            );
+            assert_eq!(value["osc52_sink"], serde_json::json!(false));
+            assert_eq!(value["container_no_display"], serde_json::json!(false));
+        }
+    }
 
     #[test]
     fn manual_auth_name_and_shape() {
@@ -1848,75 +2386,6 @@ mod tests {
     }
 
     #[test]
-    fn project_picker_selected_name_and_shape() {
-        assert_eq!(ProjectPickerSelected::NAME, "project_picker_selected");
-
-        let picked = serde_json::to_value(ProjectPickerSelected {
-            outcome: ProjectPickerOutcome::RecentProject,
-            picked_project: ProjectPickerOutcome::RecentProject.picked_project(),
-            project_dir_options: 3,
-        })
-        .unwrap();
-        assert_eq!(
-            picked,
-            serde_json::json!({
-                "outcome": "recent_project",
-                "picked_project": true,
-                "project_dir_options": 3,
-            })
-        );
-
-        let dismissed = serde_json::to_value(ProjectPickerSelected {
-            outcome: ProjectPickerOutcome::Dismissed,
-            picked_project: ProjectPickerOutcome::Dismissed.picked_project(),
-            project_dir_options: 1,
-        })
-        .unwrap();
-        assert_eq!(
-            dismissed,
-            serde_json::json!({
-                "outcome": "dismissed",
-                "picked_project": false,
-                "project_dir_options": 1,
-            })
-        );
-    }
-
-    #[test]
-    fn project_picker_outcome_picked_project_mapping() {
-        assert!(ProjectPickerOutcome::RecentProject.picked_project());
-        assert!(ProjectPickerOutcome::CustomPath.picked_project());
-        assert!(!ProjectPickerOutcome::CurrentDir.picked_project());
-        assert!(!ProjectPickerOutcome::DontAskAgain.picked_project());
-        assert!(!ProjectPickerOutcome::Dismissed.picked_project());
-    }
-
-    #[test]
-    fn project_picker_outcome_wire_strings() {
-        let s = |o: ProjectPickerOutcome| serde_json::to_value(o).unwrap();
-        assert_eq!(
-            s(ProjectPickerOutcome::RecentProject),
-            serde_json::json!("recent_project")
-        );
-        assert_eq!(
-            s(ProjectPickerOutcome::CustomPath),
-            serde_json::json!("custom_path")
-        );
-        assert_eq!(
-            s(ProjectPickerOutcome::CurrentDir),
-            serde_json::json!("current_dir")
-        );
-        assert_eq!(
-            s(ProjectPickerOutcome::DontAskAgain),
-            serde_json::json!("dont_ask_again")
-        );
-        assert_eq!(
-            s(ProjectPickerOutcome::Dismissed),
-            serde_json::json!("dismissed")
-        );
-    }
-
-    #[test]
     fn plugin_cta_event_names() {
         assert_eq!(PluginCtaImpression::NAME, "plugin_cta_impression");
         assert_eq!(PluginCtaConnectClicked::NAME, "plugin_cta_connect_clicked");
@@ -1928,6 +2397,70 @@ mod tests {
     fn announcement_cta_event_names() {
         assert_eq!(AnnouncementCtaShown::NAME, "announcement_cta_shown");
         assert_eq!(AnnouncementCtaClicked::NAME, "announcement_cta_clicked");
+    }
+
+    #[test]
+    fn shortcut_used_name_and_shape() {
+        assert_eq!(ShortcutUsed::NAME, "shortcut_used");
+        let value = serde_json::to_value(ShortcutUsed {
+            key: "Ctrl+L".into(),
+            action: "interject_prompt".into(),
+            context: "prompt_focused".into(),
+        })
+        .unwrap();
+        assert_eq!(
+            value,
+            serde_json::json!({
+                "key": "Ctrl+L",
+                "action": "interject_prompt",
+                "context": "prompt_focused",
+            })
+        );
+    }
+
+    #[test]
+    fn coding_data_consent_selected_name_and_shape() {
+        assert_eq!(
+            CodingDataConsentSelected::NAME,
+            "coding_data_consent_selected"
+        );
+        let event = serde_json::to_value(CodingDataConsentSelected {
+            source: CodingDataConsentSource::Settings,
+            choice: CodingDataConsentChoice::OptIn,
+            previous_choice: CodingDataConsentChoice::OptIn,
+            changed: false,
+        })
+        .unwrap();
+        assert_eq!(
+            event,
+            serde_json::json!({
+                "source": "settings",
+                "choice": "opt_in",
+                "previous_choice": "opt_in",
+                "changed": false,
+            })
+        );
+    }
+
+    /// Serde renames the payload field, strum renders the external label: two snake_case implementations, so pin that they agree on every variant.
+    #[test]
+    fn skill_trigger_serializes_the_same_string_strum_yields() {
+        for trigger in [
+            SkillTrigger::SlashCommand,
+            SkillTrigger::SkillMdRead,
+            SkillTrigger::SkillTool,
+        ] {
+            let serde = serde_json::to_value(SkillDispatched {
+                skill_name: "pdf".into(),
+                plugin_source: None,
+                trigger,
+            })
+            .unwrap();
+            assert_eq!(
+                serde,
+                serde_json::json!({ "skill_name": "pdf", "trigger": <&'static str>::from(trigger) })
+            );
+        }
     }
 
     #[test]
@@ -2058,6 +2591,29 @@ mod tests {
     }
 
     #[test]
+    fn login_failed_serializes_kind_and_os_code() {
+        let v = serde_json::to_value(LoginFailed {
+            error_kind: LoginFailureKind::TransportInterrupted,
+            os_error: Some(104),
+        })
+        .unwrap();
+        assert_eq!(
+            v,
+            serde_json::json!({ "error_kind": "transport_interrupted", "os_error": 104 })
+        );
+    }
+
+    #[test]
+    fn login_failed_omits_absent_os_code() {
+        let v = serde_json::to_value(LoginFailed {
+            error_kind: LoginFailureKind::Decode,
+            os_error: None,
+        })
+        .unwrap();
+        assert_eq!(v, serde_json::json!({ "error_kind": "decode" }));
+    }
+
+    #[test]
     fn api_key_save_result_omits_error_when_ok() {
         let ok = serde_json::to_value(ApiKeySaveResult {
             ok: true,
@@ -2074,6 +2630,111 @@ mod tests {
             err,
             serde_json::json!({ "ok": false, "error": "failed to write key" })
         );
+    }
+
+    #[test]
+    fn cli_update_event_name_and_serde() {
+        assert_eq!(CliUpdate::NAME, "cli_update");
+        let ok = serde_json::to_value(CliUpdate {
+            outcome: CliUpdateOutcome::Success,
+            trigger: CliUpdateTrigger::UserCommand,
+            from_version: "0.2.118".into(),
+            to_version: Some("0.2.120".into()),
+            channel: CliUpdateChannel::Alpha,
+            installer: CliUpdateInstaller::Internal,
+            platform: "macos-x86_64".into(),
+            rosetta: true,
+            duration_ms: 12_000,
+            error_kind: None,
+        })
+        .unwrap();
+        assert_eq!(
+            ok,
+            serde_json::json!({
+                "outcome": "success",
+                "trigger": "user_command",
+                "from_version": "0.2.118",
+                "to_version": "0.2.120",
+                "channel": "alpha",
+                "installer": "internal",
+                "platform": "macos-x86_64",
+                "rosetta": true,
+                "duration_ms": 12000,
+            })
+        );
+        let fail = serde_json::to_value(CliUpdate {
+            outcome: CliUpdateOutcome::Failed,
+            trigger: CliUpdateTrigger::AutoBackground,
+            from_version: "0.2.118".into(),
+            to_version: Some("0.2.120".into()),
+            channel: CliUpdateChannel::Alpha,
+            installer: CliUpdateInstaller::Internal,
+            platform: "macos-x86_64".into(),
+            rosetta: true,
+            duration_ms: 60_100,
+            error_kind: Some(CliUpdateErrorKind::SmokeTimeout),
+        })
+        .unwrap();
+        assert_eq!(fail["outcome"], "failed");
+        assert_eq!(fail["error_kind"], "smoke_timeout");
+        assert_eq!(fail["trigger"], "auto_background");
+        assert!(fail.get("error").is_none());
+        assert_eq!(
+            serde_json::to_value(CliUpdateTrigger::LeaderConverge).unwrap(),
+            "leader_converge"
+        );
+        // Trigger as_str / FromStr / serde are one rendering.
+        for t in [
+            CliUpdateTrigger::UserCommand,
+            CliUpdateTrigger::AutoBackground,
+            CliUpdateTrigger::LeaderConverge,
+        ] {
+            assert_eq!(serde_json::to_value(t).unwrap(), t.as_str());
+            assert_eq!(t.as_str().parse::<CliUpdateTrigger>().unwrap(), t);
+        }
+        assert!("bogus".parse::<CliUpdateTrigger>().is_err());
+        // Wire values and from_installer_str round-trip — one mapping.
+        for (installer, wire) in [
+            (CliUpdateInstaller::Npm, "npm"),
+            (CliUpdateInstaller::GhRelease, "gh-release"),
+            (CliUpdateInstaller::Internal, "internal"),
+            (CliUpdateInstaller::Other, "other"),
+        ] {
+            assert_eq!(serde_json::to_value(installer).unwrap(), wire);
+            assert_eq!(CliUpdateInstaller::from_installer_str(wire), installer);
+        }
+        assert_eq!(
+            CliUpdateInstaller::from_installer_str("homebrew"),
+            CliUpdateInstaller::Other
+        );
+    }
+
+    /// Private mirror names bucket to Other; empty means stable.
+    #[test]
+    fn cli_update_channel_buckets() {
+        assert_eq!(
+            CliUpdateChannel::from_channel_str(" alpha "),
+            CliUpdateChannel::Alpha
+        );
+        assert_eq!(
+            CliUpdateChannel::from_channel_str(""),
+            CliUpdateChannel::Stable
+        );
+        assert_eq!(
+            CliUpdateChannel::from_channel_str("stable"),
+            CliUpdateChannel::Stable
+        );
+        assert_eq!(
+            CliUpdateChannel::from_channel_str("enterprise"),
+            CliUpdateChannel::Enterprise
+        );
+        for private in ["acme-mirror.1", "x'; rm -rf ~;'", "a b"] {
+            assert_eq!(
+                CliUpdateChannel::from_channel_str(private),
+                CliUpdateChannel::Other,
+                "{private:?} must bucket to other"
+            );
+        }
     }
 
     #[test]

@@ -4756,9 +4756,8 @@ impl MvpAgent {
             });
             tee_rx
         };
-        self.permission_event_receivers
-            .borrow_mut()
-            .insert(session_info.id.clone(), permission_events_rx);
+        self.session_registry
+            .set_permission_receiver(&session_info.id, permission_events_rx);
         if handle_display_cwd.is_some() {
             handle.display_cwd = handle_display_cwd;
         }

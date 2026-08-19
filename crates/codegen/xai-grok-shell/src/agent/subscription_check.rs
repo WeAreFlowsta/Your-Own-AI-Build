@@ -142,7 +142,10 @@ pub(crate) async fn single_check(
         })
         .await
         .ok()
-        .flatten()
+        .and_then(|fetch| match fetch {
+            crate::remote::SettingsFetch::Fetched(settings) => Some(*settings),
+            _ => None,
+        })
     } else {
         None
     };

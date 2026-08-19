@@ -234,6 +234,10 @@ pub enum EnqueueOutcome {
     FellBackToInline,
     Failed { reason: String },
     Deduplicated,
+    /// The enqueue was skipped by policy before any handoff (upstream's
+    /// pre-flight skip). In this build all uploads are skipped anyway; the
+    /// variant exists so call sites compile.
+    Skipped { reason: String },
 }
 
 impl UploadQueue {

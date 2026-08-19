@@ -10,7 +10,6 @@
 //! Cloud upload removed from this build: the `gcs`, `s3`, `storage_client`,
 //! and `queue` modules are API-compatible stubs that perform no network I/O.
 pub(crate) mod circuit_breaker_observer;
-pub mod events;
 pub mod gcs;
 pub mod queue;
 pub mod s3;

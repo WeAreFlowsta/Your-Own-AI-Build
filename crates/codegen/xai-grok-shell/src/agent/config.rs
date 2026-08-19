@@ -2630,24 +2630,6 @@ impl Config {
     }
     /// `image_gen` (+ `/imagine`). Default on.
     ///
-    /// Precedence: requirements > `GROK_VOICE_MODE` > config/managed
-    /// `[features] voice_mode` > remote `voice_mode_enabled` > default.
-    /// The pager may force API-key sessions on when only remote is off.
-    pub(crate) fn resolve_voice_mode(&self) -> Resolved<bool> {
-        let ff = self
-            .remote_settings
-            .as_ref()
-            .and_then(|s| s.voice_mode_enabled);
-        BoolFlag::env("GROK_VOICE_MODE")
-            .requirement(self.requirements.voice_mode.pinned())
-            .config(self.features.voice_mode)
-            .feature_flag(ff)
-            // Voice dictation streams audio to the upstream vendor's STT API;
-            // off by default in this local-first build (opt back in via
-            // config/env once pointed at your own endpoint).
-            .default(false)
-            .resolve()
-    }
     /// `imagine_tools_disabled` is a remote force-off (env/config cannot
     /// re-enable). Otherwise: requirement > env > `[features]` > remote >
     /// default. (These tools stay unregistered in this local-first build -
