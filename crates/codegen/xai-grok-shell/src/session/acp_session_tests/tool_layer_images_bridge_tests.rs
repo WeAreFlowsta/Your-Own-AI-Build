@@ -1,4 +1,5 @@
 //! Wiring tests for MCP tool-layer images through `handle_bridge_tool_success`.
+use base64::Engine;
 use super::support::*;
 use super::*;
 use xai_grok_sampling_types::{ContentPart, ConversationItem};

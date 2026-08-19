@@ -100,11 +100,11 @@ pub fn extract_builtin_files(grok_home: &std::path::Path) {
 }
 
 pub fn extract_bundled_files(grok_home: &std::path::Path) {
-    // Always remove legacy/renamed bundled skills first (e.g. the old
-    // `check` directory after the rename to `check-work`). This runs on
-    // every startup so users get cleaned up even without hitting a
-    // version-bump marker change.
-    remove_legacy_bundled_skills(grok_home);
+    // Remove stale platform-extracted skill dirs first - but only the ones
+    // PROVABLY ours (SKILL.md hash matches a former shipped body). A dir a
+    // user authored under an old name is never touched; upstream's
+    // fail-closed purge replaced the old unconditional name-list delete.
+    purge_stale_extracted_skills(grok_home);
 
     let version = xai_grok_version::VERSION;
     let marker = grok_home.join(".metadata_version");
@@ -282,27 +282,15 @@ mod tests {
 
         extract_bundled_files(home);
 
-        for &(filename, _) in BUNDLED_FILES {
+        for &(filename, _) in BUILTIN_FILES {
             std::fs::write(home.join(filename), "old").unwrap();
-        }
-        std::fs::write(home.join("skills/help/SKILL.md"), "old").unwrap();
-        for name in ["check-work", "code-review"] {
-            std::fs::write(home.join(format!("skills/{name}/SKILL.md")), "old").unwrap();
         }
         std::fs::write(home.join(".metadata_version"), "0.0.0-stale").unwrap();
 
-        let skill_names = [
-            "help",
-            "create-skill",
-            "code-review",
-            "imagine",
-            "check-work",
-            "check",
-            "best-of-n",
-            "docx",
-            "pptx",
-            "xlsx",
-        ];
+        // User-authored skill dirs - including ones reusing legacy bundled
+        // names - are never touched: the purge only removes provably-ours
+        // bodies, and extraction writes no skills.
+        let skill_names = ["help", "check", "imagine", "my-own"];
         for name in skill_names {
             let dir = home.join("skills").join(name);
             std::fs::create_dir_all(&dir).unwrap();
@@ -314,13 +302,15 @@ mod tests {
 
         assert_ne!(
             std::fs::read_to_string(home.join("README.md")).unwrap(),
-            "old"
+            "old",
+            "version bump re-extracts built-in metadata"
         );
-        for name in ["check-work", "code-review"] {
-            assert_ne!(
-                std::fs::read_to_string(home.join(format!("skills/{name}/SKILL.md"))).unwrap(),
-                "old",
-                "{name} skill was not re-extracted after version bump"
+        for name in skill_names {
+            let dir = home.join("skills").join(name);
+            assert_eq!(
+                std::fs::read_to_string(dir.join("SKILL.md")).unwrap(),
+                format!("custom {name}"),
+                "{name}: user-authored skill body must survive extraction"
             );
             assert_eq!(
                 std::fs::read_to_string(dir.join("user-file.txt")).unwrap(),
@@ -453,40 +443,3 @@ mod tests {
     }
 }
 
-/// Remove directories for legacy/renamed bundled skills (e.g. old `check`
-/// after it was renamed to `check-work`).
-///
-/// Called on every startup from `extract_bundled_files`. Safe and idempotent.
-///
-/// Key guarantees (see `LEGACY_BUNDLED_SKILL_NAMES` docs for details):
-/// - If a name is still present in `BUNDLED_SKILLS`, we deliberately skip
-///   deletion. This allows safe re-use of a skill name in the future.
-/// - If the target directory no longer exists, this is a trivial no-op.
-fn remove_legacy_bundled_skills(grok_home: &std::path::Path) {
-    remove_legacy_skills(grok_home, LEGACY_BUNDLED_SKILL_NAMES, BUNDLED_SKILLS);
-}
-
-/// Core implementation, extracted for testability.
-fn remove_legacy_skills(
-    grok_home: &std::path::Path,
-    legacy_names: &[&str],
-    bundled_skills: &[(&str, &str)],
-) {
-    for name in legacy_names {
-        // Safety: Never delete a name that we are currently shipping.
-        // This protects against re-introducing a skill name that still has
-        // an entry in the legacy list.
-        if bundled_skills.iter().any(|(n, _)| *n == *name) {
-            continue;
-        }
-
-        let dir = grok_home.join("skills").join(name);
-        if dir.exists() {
-            if let Err(e) = std::fs::remove_dir_all(&dir) {
-                tracing::debug!(error = %e, name, "Failed to remove legacy bundled skill");
-            } else {
-                tracing::debug!(name, "Removed legacy bundled skill directory");
-            }
-        }
-    }
-}

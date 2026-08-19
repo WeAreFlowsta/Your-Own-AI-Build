@@ -73,6 +73,7 @@ opentelemetry_sdk = { workspace = true, features = [
 tracing-opentelemetry = { workspace = true }
 
 [dev-dependencies]
+ctor = { workspace = true }
 # In-memory log/metric exporters for the external-stream wire-shape tests.
 opentelemetry_sdk = { workspace = true, features = ["testing"] }
 tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "time"] }
