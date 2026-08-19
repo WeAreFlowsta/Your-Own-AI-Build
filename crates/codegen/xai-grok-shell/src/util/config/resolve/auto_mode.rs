@@ -164,7 +164,18 @@ fn merge_auto_mode_config(
         prompt_type: config.prompt_type.or(remote.prompt_type),
         classifier_model: config.classifier_model.or(remote.classifier_model),
         reasoning_effort: config.reasoning_effort.or(remote.reasoning_effort),
+        classifier: config.classifier.or(remote.classifier),
     }
+}
+
+/// Whether auto mode should wire the LLM side-query classifier at all.
+/// `[auto_mode] classifier = "model"` opts in; unset or `"heuristic"` keeps
+/// the built-in rule-based classifier alone (unknown ⇒ prompt).
+pub fn auto_mode_uses_model_classifier() -> bool {
+    matches!(
+        resolve_auto_mode_config_from_disk().classifier,
+        Some(crate::agent::config::AutoModeClassifierKind::Model)
+    )
 }
 
 /// Resolve the full Auto-mode config for the rare classifier-wiring read. Loads
@@ -404,12 +415,14 @@ mod auto_permission_mode_gate_tests {
             prompt_type: Some(ClassifierPromptType::JustCommand),
             classifier_model: None,
             reasoning_effort: None,
+            classifier: None,
         };
         let remote = AutoModeConfig {
             enabled: Some(false),
             prompt_type: Some(ClassifierPromptType::Full),
             classifier_model: Some("remote-model".into()),
             reasoning_effort: Some(ReasoningEffort::Low),
+            classifier: None,
         };
         let merged = merge_auto_mode_config(config, remote);
         assert_eq!(merged.enabled, Some(true));

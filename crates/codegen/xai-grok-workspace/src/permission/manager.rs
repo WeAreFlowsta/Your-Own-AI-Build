@@ -41,6 +41,64 @@ mod reasons {
     pub const PROMPT_DENY: &str = "prompt_deny";
     pub const NEEDS_USER: &str = "needs_user";
     pub const REQUESTER_GONE: &str = "requester_gone";
+    /// Auto mode: an edit outside the session's working directory. Upstream
+    /// fast-path-allows every edit; here the project folder is the boundary
+    /// of what auto may do unasked, so these prompt.
+    pub const AUTO_OUTSIDE_WORKSPACE: &str = "auto_outside_workspace";
+}
+
+/// Is `path` (absolute or cwd-relative) lexically inside `cwd`? Lexical only
+/// (`.`/`..` folded, no symlink resolution) - the prompt is the
+/// defense-in-depth for anything cleverer.
+fn edit_path_within_cwd(path: &str, cwd: &std::path::Path) -> bool {
+    use std::path::{Component, PathBuf};
+    let raw = std::path::Path::new(path);
+    let joined = if raw.is_absolute() { raw.to_path_buf() } else { cwd.join(raw) };
+    let mut out = PathBuf::new();
+    for c in joined.components() {
+        match c {
+            Component::ParentDir => {
+                out.pop();
+            }
+            Component::CurDir => {}
+            other => out.push(other.as_os_str()),
+        }
+    }
+    let mut root = PathBuf::new();
+    for c in cwd.components() {
+        match c {
+            Component::ParentDir => {
+                root.pop();
+            }
+            Component::CurDir => {}
+            other => root.push(other.as_os_str()),
+        }
+    }
+    out.starts_with(&root)
+}
+
+#[cfg(test)]
+mod edit_boundary_tests {
+    use super::edit_path_within_cwd;
+    use std::path::Path;
+
+    #[test]
+    fn inside_relative_and_absolute() {
+        let cwd = Path::new("/home/u/proj");
+        assert!(edit_path_within_cwd("src/main.rs", cwd));
+        assert!(edit_path_within_cwd("./src/../README.md", cwd));
+        assert!(edit_path_within_cwd("/home/u/proj/a/b.txt", cwd));
+    }
+
+    #[test]
+    fn outside_via_dotdot_or_absolute() {
+        let cwd = Path::new("/home/u/proj");
+        assert!(!edit_path_within_cwd("../other/x.rs", cwd));
+        assert!(!edit_path_within_cwd("/home/u/other/x.rs", cwd));
+        assert!(!edit_path_within_cwd("/etc/passwd", cwd));
+        // A sibling that merely shares the prefix string is outside.
+        assert!(!edit_path_within_cwd("/home/u/proj2/x.rs", cwd));
+    }
 }
 
 /// Canonical permission-mode string for the uploaded artifact. Matches
@@ -1239,7 +1297,17 @@ fn spawn_permission_manager_with_pin(
                             auto_mode_fast_path,
                         };
                         let needs_user = access_requires_user_interaction(&tool_name, &access);
-                        let fast = auto_mode_fast_path(&access, &tool_name, needs_user);
+                        let mut fast = auto_mode_fast_path(&access, &tool_name, needs_user);
+                        // The project folder is the boundary: an edit outside the
+                        // session cwd never rides the accept-all-edits fast path -
+                        // it prompts, with its own reason on the card.
+                        let mut outside_workspace = false;
+                        if let (AutoFastPath::Allow, AccessKind::Edit(path)) = (&fast, &access)
+                            && !edit_path_within_cwd(path, cwd.as_path())
+                        {
+                            fast = AutoFastPath::PromptUser;
+                            outside_workspace = true;
+                        }
                         match fast {
                             AutoFastPath::Allow => {
                                 tracing::debug!(
@@ -1260,7 +1328,11 @@ fn spawn_permission_manager_with_pin(
                             AutoFastPath::PromptUser => {
                                 // Fall through to interactive prompt path.
                                 auto_forced_prompt = true;
-                                auto_prompt_reason = Some(reasons::NEEDS_USER);
+                                auto_prompt_reason = Some(if outside_workspace {
+                                    reasons::AUTO_OUTSIDE_WORKSPACE
+                                } else {
+                                    reasons::NEEDS_USER
+                                });
                             }
                             AutoFastPath::Classify => {
                                 let verdict = if let Some(ref clf) = auto_classifier {
@@ -1551,7 +1623,7 @@ fn spawn_permission_manager_with_pin(
                             // (e.g. `curl … && sh` must not become two separate
                             // prompts for `curl …` then `sh`).
                             let prompt_outcome = tokio::select! {
-                                outcome = prompter.request(&access, &tool_call_update) => outcome,
+                                outcome = prompter.request_with_reason(&access, &tool_call_update, Some(prompt_trigger)) => outcome,
                                 _ = respond_to.closed() => PromptOutcome::Cancelled,
                             };
 
@@ -1607,7 +1679,7 @@ fn spawn_permission_manager_with_pin(
                         _ => {
                             // Non-bash access kinds keep the single-prompt flow.
                             let prompt_outcome = tokio::select! {
-                                outcome = prompter.request(&access, &tool_call_update) => outcome,
+                                outcome = prompter.request_with_reason(&access, &tool_call_update, Some(prompt_trigger)) => outcome,
                                 _ = respond_to.closed() => PromptOutcome::Cancelled,
                             };
                             let (decision, outcome_str) = match &prompt_outcome {
@@ -4925,9 +4997,10 @@ mod tests {
     }
 
     /// Auto mode accepts ALL file edits via the fast path regardless of location
-    /// (the accept-all-edits product decision, no workspace restriction): both an
-    /// in-cwd edit and an absolute path clearly OUTSIDE cwd fast-path Allow. The
-    /// fast path is path-independent, so the target file need not exist.
+    /// (edits INSIDE the session cwd ride the fast path; the target file need
+    /// not exist). Edits outside the cwd are covered by
+    /// `auto_mode_edit_outside_workspace_prompts` - this fork bounds auto to
+    /// the project folder.
     #[tokio::test]
     async fn auto_mode_edit_fast_path_allows() {
         let local = tokio::task::LocalSet::new();
@@ -4954,20 +5027,68 @@ mod tests {
                     "in-cwd edit under auto must fast-path allow, got {d:?}"
                 );
 
-                // Out-of-workspace absolute edit → Allow too (no workspace restriction).
+                // A cwd-relative edit that resolves inside → Allow as well.
                 let d = mgr
-                    .request(
-                        AccessKind::Edit("/etc/hosts".into()),
-                        mk("tc-edit-out"),
-                        None,
-                        None,
-                        None,
-                    )
+                    .request(AccessKind::Edit("src/lib.rs".into()), mk("tc-edit-rel"), None, None, None)
                     .await;
                 assert!(
                     matches!(d, Decision::Allow),
-                    "out-of-workspace edit under auto must fast-path allow, got {d:?}"
+                    "relative in-cwd edit under auto must fast-path allow, got {d:?}"
                 );
+            })
+            .await;
+    }
+
+    /// The project folder is the boundary of what auto may do unasked: an
+    /// edit OUTSIDE the session cwd never rides the accept-all-edits fast
+    /// path - it prompts (recorded here by the client as reject-once) with
+    /// the `auto_outside_workspace` trigger, exactly once, never a silent
+    /// allow and never a silent deny.
+    #[tokio::test]
+    async fn auto_mode_edit_outside_workspace_prompts() {
+        let local = tokio::task::LocalSet::new();
+        local
+            .run_until(async {
+                let tmp = tempfile::tempdir().unwrap();
+                let cwd = AbsPathBuf::new(tmp.path().to_path_buf()).unwrap();
+                let client = RecordingClient::default();
+                let prompts = client.prompts.clone();
+                let (mgr, mut events) =
+                    manager_with_recording_client(&cwd, None, client, ClientType::Generic);
+                mgr.set_auto_mode(true);
+                let mk = |id: &str| {
+                    acp::ToolCallUpdate::new(
+                        acp::ToolCallId::new(std::sync::Arc::from(id)),
+                        Default::default(),
+                    )
+                };
+                let d = tokio::time::timeout(
+                    std::time::Duration::from_secs(5),
+                    mgr.request(AccessKind::Edit("/etc/hosts".into()), mk("tc-edit-out"), None, None, None),
+                )
+                .await
+                .expect("outside-workspace edit must resolve, not hang");
+                assert!(
+                    !matches!(d, Decision::Allow),
+                    "out-of-workspace edit under auto must NOT auto-allow, got {d:?}"
+                );
+                assert_eq!(prompts.borrow().len(), 1, "outside-workspace edit must prompt exactly once");
+                let ev = events.recv().await.expect("one permission event");
+                assert!(ev.user_prompted, "the event records that the user was prompted");
+                assert_eq!(
+                    ev.decision_reason.as_deref(),
+                    Some(reasons::AUTO_OUTSIDE_WORKSPACE),
+                    "the trigger names the boundary"
+                );
+                // A `..` escape is outside too.
+                let d = tokio::time::timeout(
+                    std::time::Duration::from_secs(5),
+                    mgr.request(AccessKind::Edit("../escape.rs".into()), mk("tc-edit-dotdot"), None, None, None),
+                )
+                .await
+                .expect("dotdot edit must resolve");
+                assert!(!matches!(d, Decision::Allow), "dotdot escape must not auto-allow, got {d:?}");
+                assert_eq!(prompts.borrow().len(), 2);
             })
             .await;
     }

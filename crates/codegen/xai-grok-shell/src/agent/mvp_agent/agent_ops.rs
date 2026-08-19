@@ -3629,6 +3629,33 @@ impl MvpAgent {
                 }
             });
         }
+        // Every permission decision - auto-approved, policy-allowed, prompted,
+        // denied - goes to the client LIVE as `flowsta/permission_decided`, so a
+        // client that keeps its own record of what the agent did (Your Own AI
+        // writes each decision into the user's records) sees the ones no
+        // prompt ever surfaced. The stream is teed: the turn-end collector
+        // below keeps reading exactly what it read before.
+        let permission_events_rx = {
+            let (tee_tx, tee_rx) = tokio::sync::mpsc::unbounded_channel::<PermissionEvent>();
+            let gateway = self.gateway.clone();
+            let sid = session_info.id.to_string();
+            let mut upstream_rx = permission_events_rx;
+            tokio::task::spawn_local(async move {
+                while let Some(event) = upstream_rx.recv().await {
+                    let payload = serde_json::json!({ "sessionId": sid, "event": event });
+                    if let Ok(params) = serde_json::value::to_raw_value(&payload) {
+                        let _ = gateway.forward_fire_and_forget(acp::ExtNotification::new(
+                            "flowsta/permission_decided",
+                            params.into(),
+                        ));
+                    }
+                    if tee_tx.send(event).is_err() {
+                        break;
+                    }
+                }
+            });
+            tee_rx
+        };
         self.permission_event_receivers
             .borrow_mut()
             .insert(session_info.id.clone(), permission_events_rx);

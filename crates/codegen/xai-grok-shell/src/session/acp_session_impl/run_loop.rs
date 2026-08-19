@@ -459,7 +459,7 @@ pub(super) async fn run_session(
             } } SessionCommand::SetAutoMode { enabled } => { let enabled = enabled &&
             crate ::util::config::auto_permission_mode_enabled_from_disk();
             tracing::info!("Session received SetAutoMode: {}", enabled); session
-            .permissions.set_auto_mode(enabled); if enabled { session
+            .permissions.set_auto_mode(enabled); if enabled && crate ::util::config::auto_mode_uses_model_classifier() { session
             .wire_permission_auto_llm_classifier(). await; } else { session.permissions
             .set_llm_side_query_wired(false); } } SessionCommand::ResetPermissionState =>
             { session.permissions.reset_state(); tracing::info!(session_id = % session

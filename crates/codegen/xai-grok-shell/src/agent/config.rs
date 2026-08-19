@@ -4109,6 +4109,22 @@ pub struct AutoModeConfig {
     /// (`low` if the effective model supports reasoning effort, else unset).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<ReasoningEffort>,
+    /// Which classifier judges the grey area in auto mode. `heuristic` = the
+    /// built-in rule-based, fail-closed classifier only (no model call, no
+    /// network - unknown commands prompt the user); `model` = the LLM side-query
+    /// (the session model or `classifier_model`) with the heuristic as
+    /// fallback. `None` ⇒ heuristic: judging on the user's machine is the
+    /// cautious default; a client that wants the model turns it on explicitly.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub classifier: Option<AutoModeClassifierKind>,
+}
+
+/// `[auto_mode] classifier` values. See [`AutoModeConfig::classifier`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AutoModeClassifierKind {
+    Heuristic,
+    Model,
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Features {

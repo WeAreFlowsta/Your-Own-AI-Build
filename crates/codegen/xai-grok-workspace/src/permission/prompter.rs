@@ -722,6 +722,20 @@ impl AcpPrompter {
         access: &AccessKind,
         tool_call_update: &acp::ToolCallUpdate,
     ) -> PromptOutcome {
+        self.request_with_reason(access, tool_call_update, None).await
+    }
+
+    /// [`Self::request`] carrying WHY this ask reached the user (the manager's
+    /// prompt trigger: `auto_classifier_block`, `auto_outside_workspace`,
+    /// `needs_user`, `policy_ask`, ..) on the ACP request `_meta` as
+    /// `flowsta/promptReason`, so a client running auto mode can tell the
+    /// user "auto stopped here because ..." instead of a bare card.
+    pub async fn request_with_reason(
+        &self,
+        access: &AccessKind,
+        tool_call_update: &acp::ToolCallUpdate,
+        prompt_reason: Option<&str>,
+    ) -> PromptOutcome {
         let tool_name = tool_name_for_access(access);
         // events.jsonl: `PermissionRequested` at prompt-start. The `Instant`
         // captured here is what makes the paired `PermissionResolved.wait_ms`
@@ -750,12 +764,17 @@ impl AcpPrompter {
             }
             None => {
                 let permission_options = self.build_options(access);
+                let mut meta = self.bash_selection_meta(access);
+                if let Some(reason) = prompt_reason {
+                    meta.get_or_insert_with(acp::Meta::new)
+                        .insert("flowsta/promptReason".to_string(), serde_json::json!(reason));
+                }
                 let req = acp::RequestPermissionRequest::new(
                     self.session_id.clone(),
                     tool_call_update.clone(),
                     permission_options.values().cloned().collect(),
                 )
-                .meta(self.bash_selection_meta(access));
+                .meta(meta);
                 match self.gateway.request_permission(req).await {
                     Ok(resp) => match resp.outcome {
                         acp::RequestPermissionOutcome::Cancelled => PromptOutcome::Cancelled,

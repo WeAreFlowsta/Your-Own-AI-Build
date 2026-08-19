@@ -1394,7 +1394,9 @@ pub(crate) async fn spawn_session_actor(
             .await;
     }
     session.inject_deny_read_globs().await;
-    if session.permissions.is_auto_mode() {
+    if session.permissions.is_auto_mode()
+        && crate::util::config::auto_mode_uses_model_classifier()
+    {
         session.wire_permission_auto_llm_classifier().await;
     }
     session
