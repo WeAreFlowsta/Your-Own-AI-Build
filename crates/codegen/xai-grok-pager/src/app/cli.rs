@@ -410,7 +410,7 @@ pub struct LeaderArgs {
 #[derive(Debug, Clone, Parser)]
 #[command(
     name = "your-own-ai-build",
-    version = version_with_channel(),
+    version = xai_grok_version::full_version(),
     about = "Your Own AI Build - a local-first AI agent for your terminal",
     disable_version_flag = true,
     next_display_order = None,

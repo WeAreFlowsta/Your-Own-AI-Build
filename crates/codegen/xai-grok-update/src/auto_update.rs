@@ -190,9 +190,12 @@ pub async fn check_update_background(_update_config: &UpdateConfig) -> Backgroun
 
 /// Update checks removed from this build: always `Ok(false)`, with no
 /// network I/O and no spawned process.
+pub use xai_grok_telemetry::events::CliUpdateTrigger;
+
 pub async fn run_update_if_available(
     _run_mode: UpdateRunMode,
     _interactive: bool,
+    _trigger: CliUpdateTrigger,
     _update_config: &UpdateConfig,
 ) -> Result<bool> {
     Ok(false)
@@ -263,6 +266,7 @@ pub async fn run_update(
     _pinned_version: Option<&str>,
     channel_switch: Option<&str>,
     update_config: &mut UpdateConfig,
+    _trigger: CliUpdateTrigger,
 ) -> Result<Option<String>> {
     apply_channel_switch(channel_switch, update_config).await;
     eprintln!("Self-update is not available in this build ({UPDATE_CHECKS_DISABLED}).");
