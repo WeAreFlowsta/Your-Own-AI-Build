@@ -1916,14 +1916,27 @@ fn spawn_permission_manager_with_pin(
                             || access_requires_user_interaction(&tool_name, &access);
                         let mut fast = auto_mode_fast_path(&access, &tool_name, needs_user);
                         // The project folder is the boundary: an edit outside the
-                        // session cwd never rides the accept-all-edits fast path -
-                        // it prompts, with its own reason on the card.
+                        // request's working directory never rides the
+                        // accept-all-edits fast path - it prompts, with its own
+                        // reason on the card. "Inside" is judged against the
+                        // request's OWN paths (the real execution cwd and, for a
+                        // client that shows the user a different root, the
+                        // display cwd) - never only the shared manager cwd, or a
+                        // subagent's ordinary in-project edit would wrongly ask.
+                        // Protected system targets (resolved above) prompt via
+                        // upstream's protected-edit path before this check runs.
                         let mut outside_workspace = false;
-                        if let (AutoFastPath::Allow, AccessKind::Edit(path)) = (&fast, &access)
-                            && !edit_path_within_cwd(path, cwd.as_path())
-                        {
-                            fast = AutoFastPath::PromptUser;
-                            outside_workspace = true;
+                        if let (AutoFastPath::Allow, AccessKind::Edit(path)) = (&fast, &access) {
+                            let inside = edit_path_within_cwd(path, request_cwd)
+                                || path_context
+                                    .as_ref()
+                                    .and_then(|c| c.display_cwd.as_deref())
+                                    .is_some_and(|d| edit_path_within_cwd(path, d))
+                                || edit_path_within_cwd(path, cwd.as_path());
+                            if !inside {
+                                fast = AutoFastPath::PromptUser;
+                                outside_workspace = true;
+                            }
                         }
                         match fast {
                             AutoFastPath::Allow => {
@@ -9004,9 +9017,13 @@ mod tests {
                         Default::default(),
                     )
                 };
+                // A plain out-of-project path (another temp dir - nothing
+                // system-protected about it) prompts with OUR boundary reason.
+                let other = tempfile::tempdir().unwrap();
+                let outside = other.path().join("x.rs").to_string_lossy().into_owned();
                 let d = tokio::time::timeout(
                     std::time::Duration::from_secs(5),
-                    mgr.request(AccessKind::Edit("/etc/hosts".into()), mk("tc-edit-out"), None, None, None),
+                    mgr.request(AccessKind::Edit(outside), mk("tc-edit-out"), None, None, None),
                 )
                 .await
                 .expect("outside-workspace edit must resolve, not hang");
@@ -9022,6 +9039,15 @@ mod tests {
                     Some(reasons::AUTO_OUTSIDE_WORKSPACE),
                     "the trigger names the boundary"
                 );
+                // A protected system target never auto-runs either - upstream's
+                // protected-edit machinery catches it first, under its own reason.
+                let d = tokio::time::timeout(
+                    std::time::Duration::from_secs(5),
+                    mgr.request(AccessKind::Edit("/etc/hosts".into()), mk("tc-edit-protected"), None, None, None),
+                )
+                .await
+                .expect("protected edit must resolve");
+                assert!(!matches!(d, Decision::Allow), "protected system edit must not auto-allow, got {d:?}");
                 // A `..` escape is outside too.
                 let d = tokio::time::timeout(
                     std::time::Duration::from_secs(5),
@@ -9030,7 +9056,7 @@ mod tests {
                 .await
                 .expect("dotdot edit must resolve");
                 assert!(!matches!(d, Decision::Allow), "dotdot escape must not auto-allow, got {d:?}");
-                assert_eq!(prompts.borrow().len(), 2);
+                assert_eq!(prompts.borrow().len(), 3);
             })
             .await;
     }
