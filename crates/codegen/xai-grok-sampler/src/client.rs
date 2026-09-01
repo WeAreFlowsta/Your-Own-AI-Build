@@ -251,6 +251,36 @@ fn extract_should_retry(headers: &reqwest::header::HeaderMap) -> Option<bool> {
         })
 }
 
+/// A local OpenAI-compatible server (llama.cpp) rejects an oversized
+/// request with a structured body rather than metadata headers:
+/// `{"error":{"type":"exceed_context_size_error","n_prompt_tokens":N,"n_ctx":C}}`.
+/// Fold that into the response metadata so the shell's compact-and-resubmit
+/// path - which keys on `context_window` - fires for such servers too.
+/// Header-derived values win when both are present.
+fn metadata_from_context_rejection(
+    body: &[u8],
+    base: Option<ResponseModelMetadata>,
+) -> Option<ResponseModelMetadata> {
+    let value: serde_json::Value = serde_json::from_slice(body).ok()?;
+    let err = value.get("error")?;
+    if err.get("type").and_then(|t| t.as_str()) != Some("exceed_context_size_error") {
+        return base;
+    }
+    let n_ctx = err.get("n_ctx").and_then(|v| v.as_u64()).filter(|n| *n > 0);
+    let n_prompt = err.get("n_prompt_tokens").and_then(|v| v.as_u64());
+    if n_ctx.is_none() && n_prompt.is_none() {
+        return base;
+    }
+    let mut metadata = base.unwrap_or_default();
+    if metadata.context_window.is_none() {
+        metadata.context_window = n_ctx;
+    }
+    if metadata.prompt_tokens.is_none() {
+        metadata.prompt_tokens = n_prompt;
+    }
+    Some(metadata)
+}
+
 fn extract_model_metadata(headers: &reqwest::header::HeaderMap) -> Option<ResponseModelMetadata> {
     let context_window = headers
         .get("x-grok-context-window")
@@ -268,7 +298,7 @@ fn extract_model_metadata(headers: &reqwest::header::HeaderMap) -> Option<Respon
         .map(|s| s.to_string());
 
     if context_window.is_some() || max_completion_tokens.is_some() || models_etag.is_some() {
-        Some(ResponseModelMetadata {
+        Some(ResponseModelMetadata { prompt_tokens: None,
             context_window,
             max_completion_tokens,
             models_etag,
@@ -937,7 +967,7 @@ impl SamplingClient {
             return Err(SamplingError::Api {
                 status,
                 message,
-                model_metadata,
+                model_metadata: metadata_from_context_rejection(bytes.as_ref(), model_metadata),
                 retry_after_secs,
                 should_retry,
                 error_code: parse_error_code(bytes.as_ref()),
@@ -1108,7 +1138,7 @@ impl SamplingClient {
             return Err(SamplingError::Api {
                 status,
                 message,
-                model_metadata,
+                model_metadata: metadata_from_context_rejection(bytes.as_ref(), model_metadata),
                 retry_after_secs,
                 should_retry,
                 error_code: parse_error_code(bytes.as_ref()),
@@ -1310,7 +1340,7 @@ impl SamplingClient {
             return Err(SamplingError::Api {
                 status,
                 message,
-                model_metadata,
+                model_metadata: metadata_from_context_rejection(bytes.as_ref(), model_metadata),
                 retry_after_secs,
                 should_retry,
                 error_code: parse_error_code(bytes.as_ref()),
@@ -1476,7 +1506,7 @@ impl SamplingClient {
             return Err(SamplingError::Api {
                 status,
                 message,
-                model_metadata,
+                model_metadata: metadata_from_context_rejection(bytes.as_ref(), model_metadata),
                 retry_after_secs,
                 should_retry,
                 error_code: parse_error_code(bytes.as_ref()),
@@ -1658,7 +1688,7 @@ impl SamplingClient {
             return Err(SamplingError::Api {
                 status,
                 message,
-                model_metadata,
+                model_metadata: metadata_from_context_rejection(bytes.as_ref(), model_metadata),
                 retry_after_secs,
                 should_retry,
                 error_code: parse_error_code(bytes.as_ref()),
@@ -1792,7 +1822,7 @@ impl SamplingClient {
             return Err(SamplingError::Api {
                 status,
                 message,
-                model_metadata,
+                model_metadata: metadata_from_context_rejection(bytes.as_ref(), model_metadata),
                 retry_after_secs,
                 should_retry,
                 error_code: parse_error_code(bytes.as_ref()),
@@ -3208,5 +3238,36 @@ mod tests {
             event,
             rs::ResponseStreamEvent::ResponseOutputTextDelta(_)
         ));
+    }
+}
+
+#[cfg(test)]
+mod context_rejection_tests {
+    use super::*;
+
+    #[test]
+    fn llama_server_rejection_fills_window_and_prompt_count() {
+        let body = br#"{"error":{"code":400,"message":"request (7010 tokens) exceeds the available context size (2048 tokens), try increasing it","type":"exceed_context_size_error","n_prompt_tokens":7010,"n_ctx":2048}}"#;
+        let m = metadata_from_context_rejection(body, None).expect("metadata");
+        assert_eq!(m.context_window, Some(2048));
+        assert_eq!(m.prompt_tokens, Some(7010));
+    }
+
+    #[test]
+    fn other_errors_leave_metadata_untouched() {
+        let body = br#"{"error":{"code":400,"message":"bad request","type":"invalid_request_error"}}"#;
+        assert!(metadata_from_context_rejection(body, None).is_none());
+        let base = ResponseModelMetadata { prompt_tokens: None, context_window: Some(9), max_completion_tokens: None, models_etag: None };
+        assert_eq!(metadata_from_context_rejection(body, Some(base)).unwrap().context_window, Some(9));
+        assert!(metadata_from_context_rejection(b"not json", None).is_none());
+    }
+
+    #[test]
+    fn header_values_win_over_the_body() {
+        let body = br#"{"error":{"type":"exceed_context_size_error","n_prompt_tokens":100,"n_ctx":50}}"#;
+        let base = ResponseModelMetadata { prompt_tokens: None, context_window: Some(64), max_completion_tokens: None, models_etag: None };
+        let m = metadata_from_context_rejection(body, Some(base)).unwrap();
+        assert_eq!(m.context_window, Some(64));
+        assert_eq!(m.prompt_tokens, Some(100));
     }
 }

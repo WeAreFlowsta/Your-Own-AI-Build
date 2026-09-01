@@ -578,7 +578,7 @@ async fn idle_timeout_when_stream_stalls() {
 #[tokio::test]
 async fn model_metadata_yielded_after_stream_started() {
     let raw = stream::iter(vec![Ok(MessageStreamEvent::MessageStop)]).boxed();
-    let metadata = ResponseModelMetadata {
+    let metadata = ResponseModelMetadata { prompt_tokens: None,
         context_window: Some(200_000),
         ..Default::default()
     };

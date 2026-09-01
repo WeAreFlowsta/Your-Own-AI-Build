@@ -1820,7 +1820,13 @@ impl SessionActor {
             return false;
         }
         let estimated_total = self.chat_state_handle.get_estimated_total_tokens().await;
-        estimated_total > context_window
+        // The server's own count of the rejected prompt (a local llama.cpp
+        // server reports it in the rejection body) outranks the estimate:
+        // an under-estimate must not turn a real overflow into "give up".
+        let server_says_over = metadata
+            .prompt_tokens
+            .is_some_and(|prompt| prompt > context_window);
+        estimated_total > context_window || server_says_over
     }
     /// Pre-sampling compaction check. Uses `get_estimated_total_tokens()`
     /// (exact prior count + byte-estimate of items since last response) so

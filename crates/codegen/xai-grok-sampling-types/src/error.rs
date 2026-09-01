@@ -77,6 +77,13 @@ pub struct ResponseModelMetadata {
     pub max_completion_tokens: Option<u32>,
     /// `x-models-etag` — triggers model catalog refresh when changed.
     pub models_etag: Option<String>,
+    /// The server's own count of a rejected prompt. OpenAI-compatible local
+    /// servers (llama.cpp) reject an oversized request with a structured
+    /// body (`exceed_context_size_error`, `n_prompt_tokens`, `n_ctx`)
+    /// instead of headers; this carries the count so compact-and-resubmit
+    /// can trust the server over the shell's own token estimate.
+    #[serde(default)]
+    pub prompt_tokens: Option<u64>,
 }
 
 /// Wire-credential provenance of a request that failed authentication.

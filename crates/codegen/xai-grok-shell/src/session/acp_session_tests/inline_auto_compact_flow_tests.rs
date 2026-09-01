@@ -384,7 +384,7 @@ async fn test_response_header_context_window_downgrade_rejected() {
             let cfg_before = actor.chat_state_handle.get_sampling_config().await.unwrap();
             assert_eq!(cfg_before.context_window.get(), 500_000);
             actor
-                .handle_model_metadata_update(crate::sampling::ResponseModelMetadata {
+                .handle_model_metadata_update(crate::sampling::ResponseModelMetadata { prompt_tokens: None,
                     context_window: Some(256_000),
                     max_completion_tokens: None,
                     models_etag: None,
@@ -397,7 +397,7 @@ async fn test_response_header_context_window_downgrade_rejected() {
                 "context_window must NOT be downgraded by response header"
             );
             actor
-                .handle_model_metadata_update(crate::sampling::ResponseModelMetadata {
+                .handle_model_metadata_update(crate::sampling::ResponseModelMetadata { prompt_tokens: None,
                     context_window: Some(1_000_000),
                     max_completion_tokens: None,
                     models_etag: None,
@@ -1189,7 +1189,7 @@ fn api_error_with_context_window(context_window: u64) -> xai_grok_sampler::Sampl
         retry_after_secs: None,
         should_retry: None,
         error_code: None,
-        model_metadata: Some(crate::sampling::ResponseModelMetadata {
+        model_metadata: Some(crate::sampling::ResponseModelMetadata { prompt_tokens: None,
             context_window: Some(context_window),
             max_completion_tokens: None,
             models_etag: None,
@@ -1228,6 +1228,26 @@ async fn test_compact_on_error_no_trigger_when_tokens_within_new_window() {
             let actor = create_test_actor(150_000, 1_000_000, 85, gateway_tx, persistence_tx).await;
             let err = api_error_with_context_window(200_000);
             assert!(!actor.should_compact_on_error(&err).await);
+        })
+        .await;
+}
+/// A local server rejected the request with its own prompt count above the
+/// window while the shell's estimate sat below it (an under-estimate) -
+/// the server's count must win so the session compacts and resubmits.
+#[tokio::test(flavor = "current_thread")]
+async fn test_compact_on_error_trusts_the_servers_prompt_count() {
+    let local = tokio::task::LocalSet::new();
+    local
+        .run_until(async {
+            let (gateway_tx, _) = mpsc::unbounded_channel::<xai_acp_lib::AcpClientMessage>();
+            let (persistence_tx, _) = mpsc::unbounded_channel::<PersistenceMsg>();
+            let actor = create_test_actor(15_000, 1_000_000, 85, gateway_tx, persistence_tx).await;
+            let mut err = api_error_with_context_window(16_384);
+            err.model_metadata.as_mut().unwrap().prompt_tokens = Some(17_248);
+            assert!(actor.should_compact_on_error(&err).await);
+            let mut under = api_error_with_context_window(16_384);
+            under.model_metadata.as_mut().unwrap().prompt_tokens = Some(12_000);
+            assert!(!actor.should_compact_on_error(&under).await);
         })
         .await;
 }

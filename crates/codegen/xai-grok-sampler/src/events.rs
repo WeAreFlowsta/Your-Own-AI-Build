@@ -478,7 +478,7 @@ mod tests {
         let err = SamplingError::Api {
             status: StatusCode::BAD_REQUEST,
             message: "context window exceeded".into(),
-            model_metadata: Some(ResponseModelMetadata {
+            model_metadata: Some(ResponseModelMetadata { prompt_tokens: None,
                 context_window: Some(8000),
                 ..Default::default()
             }),

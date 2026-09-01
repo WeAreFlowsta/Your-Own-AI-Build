@@ -1456,7 +1456,7 @@ fn api_error_with_context_window(context_window: u64) -> xai_grok_sampler::Sampl
         retry_after_secs: None,
         should_retry: None,
         error_code: None,
-        model_metadata: Some(crate::sampling::ResponseModelMetadata {
+        model_metadata: Some(crate::sampling::ResponseModelMetadata { prompt_tokens: None,
             context_window: Some(context_window),
             max_completion_tokens: None,
             models_etag: None,

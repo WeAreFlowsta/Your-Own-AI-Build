@@ -637,7 +637,7 @@ mod tests {
     #[tokio::test]
     async fn model_metadata_yielded_after_stream_started() {
         let raw = stream::iter(Vec::<Result<ChatCompletionChunk, SamplingError>>::new()).boxed();
-        let metadata = ResponseModelMetadata {
+        let metadata = ResponseModelMetadata { prompt_tokens: None,
             context_window: Some(8192),
             max_completion_tokens: Some(4096),
             models_etag: None,
