@@ -1231,6 +1231,7 @@ async fn run_agent_command(
     trust: bool,
     no_auto_update: bool,
     disable_web_search: bool,
+    cli_disallowed_tools: Option<String>,
     update_config: &UpdateConfig,
 ) -> Result<()> {
     let signal_flush = agent_command::spawn_signal_flush();
@@ -1314,6 +1315,16 @@ async fn run_agent_command(
         .reasoning_effort
         .as_deref()
         .and_then(xai_grok_shell::sampling::types::parse_canonical_effort_token);
+    // `--disallowed-tools a,b` on the agent path too (the headless path
+    // already honored it): the tools are removed from the definition before
+    // the model ever sees their schemas.
+    let disallowed: Vec<String> = cli_disallowed_tools
+        .as_deref()
+        .map(|s| s.split(',').map(str::trim).filter(|t| !t.is_empty()).map(str::to_owned).collect())
+        .unwrap_or_default();
+    if !disallowed.is_empty() {
+        agent_config.cli_agent_overrides.disallowed_tools = Some(disallowed);
+    }
     let launch_yolo = xai_grok_shell::util::config::effective_yolo_for_launch(
         agent_args.yolo,
         permission_mode_flag.as_deref(),
@@ -2243,6 +2254,7 @@ async fn async_main(mut args: PagerArgs) -> Result<()> {
                     args.trust,
                     args.no_auto_update,
                     args.disable_web_search,
+                    args.cli_disallowed_tools.clone(),
                     &update_config,
                 )
                 .await;
