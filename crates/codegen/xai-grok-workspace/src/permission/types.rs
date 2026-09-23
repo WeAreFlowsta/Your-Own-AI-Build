@@ -89,6 +89,10 @@ impl ClientType {
             Some("grok-code-extension") => Self::Extension,
             Some("grok-desktop") => Self::Desktop,
             Some("grok-pager") => Self::GrokPager,
+            // Your Own AI presents permission cards of its own, so it is a
+            // desktop client: under auto mode a classifier block becomes a
+            // question for the person instead of a refusal.
+            Some("your-own-ai") => Self::Desktop,
             _ => Self::Generic,
         }
     }
@@ -468,6 +472,14 @@ pub struct Sourced<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn your_own_ai_is_a_desktop_client_that_can_be_asked() {
+        let ct = ClientType::from_client_identifier(Some("your-own-ai"));
+        assert_eq!(ct, ClientType::Desktop);
+        assert!(ct.can_present_permission_prompt());
+        assert!(!ClientType::from_client_identifier(Some("unknown-client"))
+            .can_present_permission_prompt());
+    }
     #[test]
     fn hook_ask_header_keeps_the_action_and_names_the_hook() {
         let with_reason = HookAsk {
