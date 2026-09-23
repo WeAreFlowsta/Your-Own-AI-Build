@@ -459,8 +459,8 @@ mod tests {
             assert!(
                 !defaults.value(cell),
                 "external-tool discovery must default off: {}.{}",
-                cell.vendor().as_str(),
-                cell.surface().as_str()
+                Into::<&'static str>::into(cell.vendor()),
+                Into::<&'static str>::into(cell.surface())
             );
         }
         for vendor in [defaults.cursor, defaults.claude, defaults.codex] {

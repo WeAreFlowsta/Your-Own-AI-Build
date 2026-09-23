@@ -348,3 +348,36 @@ mod tests {
         }
     }
 }
+
+/// The keys `log_event` injects itself; kept for the events module and its tests.
+#[doc(hidden)]
+pub const RESERVED_EVENT_KEYS: &[&str] = &[
+    "entrypoint",
+    "is_leader_mode",
+    "is_interactive",
+    "is_ci",
+    "release_channel",
+    "dev_build",
+    "os",
+    "arch",
+    "cpu_cores",
+    "cpu_share_percent",
+    "cpu_window_ms",
+    "child_cpu_share_percent",
+    "cpu_time_ms",
+    "child_cpu_time_ms",
+    "cpu_user_ms",
+    "cpu_system_ms",
+    "rss_bytes",
+    "footprint_bytes",
+    "memory_limit_bytes",
+    "uptime_secs",
+    crate::activity::SESSIONS_ACTIVE_KEY,
+    crate::activity::SUBAGENTS_ACTIVE_KEY,
+    crate::activity::COMPACTIONS_ACTIVE_KEY,
+    crate::activity::MCP_SERVERS_CONNECTED_KEY,
+    crate::activity::TURNS_ACTIVE_KEY,
+    crate::activity::WORKFLOW_RUNS_ACTIVE_KEY,
+    "session_id",
+    "turn_number",
+];
