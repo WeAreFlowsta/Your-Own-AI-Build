@@ -24,3 +24,7 @@ semver = { workspace = true }
 serde_json = { workspace = true }
 time = { workspace = true, features = ["serde"] }
 tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread", "test-util"] }
+
+# `cleanup_downloads.rs` lists processes through libproc on macOS.
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = { workspace = true }

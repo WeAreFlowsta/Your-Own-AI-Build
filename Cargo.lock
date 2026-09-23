@@ -14475,6 +14475,7 @@ version = "0.1.220-alpha.4"
 dependencies = [
  "anyhow",
  "dunce",
+ "libc",
  "semver",
  "serde",
  "serde_json",
