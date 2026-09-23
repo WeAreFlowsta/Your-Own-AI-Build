@@ -40,14 +40,8 @@ enum StaleWorktreeMatch<'a> {
 }
 
 /// Remove stale `.git/worktrees/<id>` registrations matching `match_rule`.
-///
-/// Deliberately not `git worktree prune`: prune deletes every registration
-/// whose worktree path is not visible from the current mount namespace (git
-/// applies no expiry protection to that case) and deletes `.git/worktrees`
-/// itself once emptied — under a container that does not mount the user's
-/// linked worktrees, that wiped them all. Best-effort: failures are logged,
-/// never returned. Returns the number of registrations removed (git suffixes
-/// ids on basename collisions, so an id may differ from the basename).
+/// Not `git worktree prune`: prune also drops registrations merely invisible
+/// in this mount namespace, wiping live linked worktrees in a container.
 fn remove_stale_worktree_registrations(
     source_repo: &Path,
     match_rule: StaleWorktreeMatch<'_>,
@@ -133,12 +127,9 @@ fn remove_stale_worktree_registrations(
         if !matched {
             continue;
         }
-        // Removing the registration also drops its `logs/` reflog. The recorded
-        // working tree is confirmed gone (checked above), the registration is
-        // not `locked`, and this scrub is opt-in (`include_rebuild`, off by
-        // default); a reflog-only commit under a vanished worktree is accepted
-        // as lost here rather than named (the age-GC delete path names via
-        // reclaimed.rs; this cleanup does not).
+        // Removing the registration also drops its `logs/` reflog. The tree is
+        // confirmed gone and unlocked, and this scrub is opt-in; a reflog-only
+        // commit here is accepted as lost (age-GC names via reclaimed.rs).
         match std::fs::remove_dir_all(&registration) {
             Ok(()) => {
                 tracing::debug!(
@@ -165,20 +156,29 @@ pub fn remove_stale_worktree_registration(source_repo: &Path, worktree_path: &Pa
     remove_stale_worktree_registrations(source_repo, StaleWorktreeMatch::Path(worktree_path))
 }
 
-/// Remove stale registrations for every worktree under a tool-owned base directory.
-///
-/// Deliberately not `git worktree prune`: prune also deletes registrations whose
-/// worktree path is merely invisible from the current mount namespace (e.g. a
-/// container that does not mount the user's worktrees), which would wipe live
-/// ones; this only removes registrations whose recorded path is confirmed gone.
+/// Remove stale registrations under a tool-owned base. Not `git worktree prune`:
+/// prune also drops paths merely invisible in this mount namespace. This only
+/// removes registrations whose recorded path is confirmed gone.
 pub fn remove_stale_worktree_registrations_under(source_repo: &Path, prefix: &Path) -> u64 {
     remove_stale_worktree_registrations(source_repo, StaleWorktreeMatch::UnderPrefix(prefix))
 }
 
-/// Canonicalize the deepest existing ancestor and re-append the missing
-/// tail: git records the realpath at `worktree add` time, so a symlinked
-/// spelling must compare equal even after the path itself is deleted.
-fn normalized_for_match(path: &Path) -> PathBuf {
+/// Normalized worktree path a registration's `gitdir` backlink names, or `None`
+/// if missing or malformed. The backlink may be relative (`worktree.useRelativePaths`).
+pub(crate) fn registration_worktree_path(registration: &Path) -> Option<PathBuf> {
+    let backlink = std::fs::read_to_string(registration.join("gitdir")).ok()?;
+    let backlink_path = Path::new(backlink.trim());
+    let backlink_abs = if backlink_path.is_relative() {
+        registration.join(backlink_path)
+    } else {
+        backlink_path.to_path_buf()
+    };
+    Some(normalized_for_match(backlink_abs.parent()?))
+}
+
+/// Canonicalize the deepest existing ancestor and re-append the missing tail, so
+/// a symlinked spelling still compares equal after the path is deleted.
+pub(crate) fn normalized_for_match(path: &Path) -> PathBuf {
     let mut missing = Vec::new();
     let mut cursor = path;
     loop {

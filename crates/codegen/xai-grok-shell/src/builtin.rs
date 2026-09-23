@@ -117,8 +117,7 @@ pub fn extract_bundled_files(grok_home: &std::path::Path) {
 
     let _ = std::fs::create_dir_all(grok_home);
 
-    // Clean up cached changelog files from previous version so
-    // /release-notes fetches fresh content for the new version.
+    // Clean up cached changelog files from previous version so /release-notes fetches fresh content for the new version
     for stale in &["CHANGELOG.json", "CHANGELOG.md"] {
         let _ = std::fs::remove_file(grok_home.join(stale));
     }
@@ -133,8 +132,7 @@ pub fn extract_bundled_files(grok_home: &std::path::Path) {
     tracing::debug!(version, "Extracted built-in files");
 }
 
-/// `(name, sha256)` of every `SKILL.md` body ever extracted into
-/// `$GROK_HOME/skills/`; `help` rows hash the pre-substitution bytes.
+/// `(name, sha256)` of every `SKILL.md` body ever extracted into `$GROK_HOME/skills/`; `help` rows hash the pre-substitution bytes.
 const FORMER_PLATFORM_SKILL_HASHES: &[(&str, &str)] = &[
     (
         "create-skill",
@@ -226,10 +224,9 @@ const FORMER_PLATFORM_SKILL_HASHES: &[(&str, &str)] = &[
     ),
 ];
 
-/// Remove platform-skill leftovers extracted into `$GROK_HOME/skills/` by
-/// pre-bundle binaries, where they shadow `bundled/skills/`. Only dirs whose
-/// `SKILL.md` byte-matches a known shipped body are removed; user skills and
-/// edits are kept. Runs every startup so restored backups get re-cleaned.
+/// Remove platform-skill leftovers extracted into `$GROK_HOME/skills/` by pre-bundle binaries, where they shadow `bundled/skills/`.
+/// Only dirs whose `SKILL.md` byte-matches a known shipped body are removed; user skills and edits are kept.
+/// Runs every startup so restored backups get re-cleaned.
 pub fn purge_stale_extracted_skills(grok_home: &std::path::Path) {
     purge_skill_dirs_matching(grok_home, FORMER_PLATFORM_SKILL_HASHES);
 }

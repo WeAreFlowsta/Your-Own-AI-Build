@@ -273,3 +273,8 @@ pub async fn run_update(
     eprintln!("Install a newer release manually from your distribution source.");
     Ok(None)
 }
+
+/// Age past which a leftover `.tmp` download file or freshly-renamed versioned binary counts as abandoned (crashed or
+/// killed updater). The per-request budget is [`DOWNLOAD_REQUEST_TIMEOUT`] and the leader's check-and-download pass
+/// matches it. So a concurrent updater's in-flight or just-landed file is never deleted out from under it.
+pub const STALE_TMP_AGE: std::time::Duration = std::time::Duration::from_secs(60 * 60);

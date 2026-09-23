@@ -331,6 +331,7 @@ impl UploadQueue {
         _artifact_name: &str,
         _session_id: &str,
         _turn_number: u64,
+        _diverted_inline: Option<&std::sync::atomic::AtomicBool>,
     ) -> anyhow::Result<String> {
         anyhow::bail!("{UPLOAD_REMOVED} (path: {gcs_path})")
     }

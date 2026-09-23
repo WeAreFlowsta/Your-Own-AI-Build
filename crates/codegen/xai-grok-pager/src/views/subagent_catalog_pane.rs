@@ -1,8 +1,6 @@
-//! Subagent catalog pane — browseable list of bundled personas/roles/agents.
-//!
-//! Read-only pane that renders grouped entries from [`BundleState`]. Headers
-//! (Personas, Roles, Agents) are non-selectable; items below each header
-//! are selectable and scrollable via the standard [`ListPane`] machinery.
+//! Read-only pane that renders grouped entries from [`BundleState`].
+//! Headers (Personas, Roles, Agents) are non-selectable.
+//! Items below each header are selectable and scrollable via the standard [`ListPane`] machinery.
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -23,10 +21,6 @@ use super::list_pane::{
     ListItem, ListPane, ListPaneConfig, ListPaneState, ListPaneStyle, WrapMode,
 };
 use super::overlay::OverlayState;
-
-// ---------------------------------------------------------------------------
-// CatalogEntry
-// ---------------------------------------------------------------------------
 
 struct CatalogEntry {
     id: u64,
@@ -72,10 +66,6 @@ fn lookup_description<'a>(kind: &str, name: &str, state: &'a BundleState) -> Opt
     }
 }
 
-// ---------------------------------------------------------------------------
-// SubagentCatalogPane
-// ---------------------------------------------------------------------------
-
 const MAX_CATALOG_HEIGHT: u16 = 8;
 const MAX_CATALOG_FRACTION: f32 = 0.15;
 
@@ -112,8 +102,6 @@ impl SubagentCatalogPane {
             overlay: OverlayState::hidden(),
         }
     }
-
-    // -- Data sync -----------------------------------------------------------
 
     pub fn sync_from_bundle(&mut self, state: &BundleState) {
         self.entries.clear();
@@ -156,7 +144,7 @@ impl SubagentCatalogPane {
                 let spans = if let Some(d) = &desc {
                     vec![
                         Span::styled(format!("  {item}"), item_style),
-                        Span::styled(format!(" \u{2014} {d}"), desc_style),
+                        Span::styled(format!(" \u{00b7} {d}"), desc_style),
                     ]
                 } else {
                     vec![Span::styled(format!("  {item}"), item_style)]
@@ -171,8 +159,6 @@ impl SubagentCatalogPane {
             }
         }
     }
-
-    // -- Visibility ----------------------------------------------------------
 
     pub fn is_visible(&self) -> bool {
         self.overlay.visible
@@ -212,8 +198,6 @@ impl SubagentCatalogPane {
         Some((entry.kind?, &entry.label))
     }
 
-    // -- Input handling ------------------------------------------------------
-
     pub fn handle_key(&mut self, key: &KeyEvent) -> bool {
         if self.entries.is_empty() {
             return false;
@@ -243,8 +227,6 @@ impl SubagentCatalogPane {
         self.list_state
             .handle_mouse_event(kind, col, row, area, &self.entries)
     }
-
-    // -- Rendering -----------------------------------------------------------
 
     fn content_area(area: Rect, layout_cfg: &LayoutConfig) -> Rect {
         let pad_left = HorizontalLayout::ACCENT + layout_cfg.block_pad_left;
@@ -300,6 +282,13 @@ mod tests {
         }
     }
 
+    fn catalog_entry(pane: &SubagentCatalogPane, i: usize) -> &CatalogEntry {
+        let Some(e) = pane.entries.get(i) else {
+            panic!("expected catalog entry {i}, have {}", pane.entries.len());
+        };
+        e
+    }
+
     #[test]
     fn sync_empty_state_produces_no_entries() {
         let mut pane = SubagentCatalogPane::new();
@@ -324,22 +313,26 @@ mod tests {
         let mut pane = SubagentCatalogPane::new();
         let state = make_state(&["researcher", "implementer"], &["reviewer"], &["default"]);
         pane.sync_from_bundle(&state);
-        // 3 headers + 4 items = 7 entries
+        // 3 headers plus 4 items
         assert_eq!(pane.entries.len(), 7);
-        assert!(pane.entries[0].is_header);
-        assert_eq!(pane.entries[0].label, "Personas");
-        assert!(!pane.entries[1].is_header);
-        assert_eq!(pane.entries[1].label, "researcher");
-        assert!(!pane.entries[2].is_header);
-        assert_eq!(pane.entries[2].label, "implementer");
-        assert!(pane.entries[3].is_header);
-        assert_eq!(pane.entries[3].label, "Roles");
-        assert!(!pane.entries[4].is_header);
-        assert_eq!(pane.entries[4].label, "reviewer");
-        assert!(pane.entries[5].is_header);
-        assert_eq!(pane.entries[5].label, "Agents");
-        assert!(!pane.entries[6].is_header);
-        assert_eq!(pane.entries[6].label, "default");
+        let [p_h, researcher, implementer, r_h, reviewer, a_h, default] = pane.entries.as_slice()
+        else {
+            panic!("expected 7 catalog entries, have {}", pane.entries.len());
+        };
+        assert!(p_h.is_header);
+        assert_eq!(p_h.label, "Personas");
+        assert!(!researcher.is_header);
+        assert_eq!(researcher.label, "researcher");
+        assert!(!implementer.is_header);
+        assert_eq!(implementer.label, "implementer");
+        assert!(r_h.is_header);
+        assert_eq!(r_h.label, "Roles");
+        assert!(!reviewer.is_header);
+        assert_eq!(reviewer.label, "reviewer");
+        assert!(a_h.is_header);
+        assert_eq!(a_h.label, "Agents");
+        assert!(!default.is_header);
+        assert_eq!(default.label, "default");
     }
 
     #[test]
@@ -347,12 +340,15 @@ mod tests {
         let mut pane = SubagentCatalogPane::new();
         let state = make_state(&["researcher", "auditor"], &[], &[]);
         pane.sync_from_bundle(&state);
-        // 1 header + 2 items = 3 (no Roles/Agents headers)
+        // 1 header plus 2 items; the empty Roles and Agents groups get no headers
         assert_eq!(pane.entries.len(), 3);
-        assert!(pane.entries[0].is_header);
-        assert_eq!(pane.entries[0].label, "Personas");
-        assert!(!pane.entries[1].is_header);
-        assert!(!pane.entries[2].is_header);
+        let [p_h, a, b] = pane.entries.as_slice() else {
+            panic!("expected 3 catalog entries, have {}", pane.entries.len());
+        };
+        assert!(p_h.is_header);
+        assert_eq!(p_h.label, "Personas");
+        assert!(!a.is_header);
+        assert!(!b.is_header);
     }
 
     #[test]
@@ -378,7 +374,7 @@ mod tests {
         pane.overlay.visible = true;
         let state = make_state(&["a", "b"], &[], &[]);
         pane.sync_from_bundle(&state);
-        // 1 header + 2 items = 3 entries, should cap at 3
+        // 1 header plus 2 items: the entry count of 3 is the cap
         assert_eq!(pane.desired_height(80), 3);
     }
 
@@ -406,12 +402,12 @@ mod tests {
         let mut pane = SubagentCatalogPane::new();
         let state1 = make_state(&["a", "b", "c"], &[], &[]);
         pane.sync_from_bundle(&state1);
-        assert_eq!(pane.entries.len(), 4); // 1 header + 3
+        assert_eq!(pane.entries.len(), 4); // 1 header plus 3 items
 
         let state2 = make_state(&["x"], &[], &[]);
         pane.sync_from_bundle(&state2);
-        assert_eq!(pane.entries.len(), 2); // 1 header + 1
-        assert_eq!(pane.entries[1].label, "x");
+        assert_eq!(pane.entries.len(), 2); // 1 header plus 1 item
+        assert_eq!(catalog_entry(&pane, 1).label, "x");
     }
 
     #[test]
@@ -421,13 +417,13 @@ mod tests {
         pane.sync_from_bundle(&state);
 
         // [0]=Personas, [1]=researcher, [2]=Roles, [3]=reviewer, [4]=Agents, [5]=default
-        pane.list_state.select_by_id(pane.entries[1].id);
+        pane.list_state.select_by_id(catalog_entry(&pane, 1).id);
         assert_eq!(pane.selected_entry(), Some(("persona", "researcher")));
 
-        pane.list_state.select_by_id(pane.entries[3].id);
+        pane.list_state.select_by_id(catalog_entry(&pane, 3).id);
         assert_eq!(pane.selected_entry(), Some(("role", "reviewer")));
 
-        pane.list_state.select_by_id(pane.entries[5].id);
+        pane.list_state.select_by_id(catalog_entry(&pane, 5).id);
         assert_eq!(pane.selected_entry(), Some(("agent", "default")));
     }
 
@@ -438,7 +434,7 @@ mod tests {
         pane.sync_from_bundle(&state);
 
         // Select the "Personas" header (entries[0])
-        pane.list_state.select_by_id(pane.entries[0].id);
+        pane.list_state.select_by_id(catalog_entry(&pane, 0).id);
         assert!(pane.selected_entry().is_none());
     }
 
@@ -467,10 +463,9 @@ mod tests {
         }];
         pane.sync_from_bundle(&state);
 
-        // researcher entry should have 2 spans (name + description)
-        assert_eq!(pane.entries[1].styled.spans.len(), 2);
-        // reviewer entry should have 2 spans
-        assert_eq!(pane.entries[3].styled.spans.len(), 2);
+        // The researcher entry renders a name span and a description span
+        assert_eq!(catalog_entry(&pane, 1).styled.spans.len(), 2);
+        assert_eq!(catalog_entry(&pane, 3).styled.spans.len(), 2);
     }
 
     #[test]
@@ -479,12 +474,12 @@ mod tests {
         let state = make_state(&["researcher"], &[], &[]);
         pane.sync_from_bundle(&state);
 
-        // No detail → single span
-        assert_eq!(pane.entries[1].styled.spans.len(), 1);
+        // No detail: single span
+        assert_eq!(catalog_entry(&pane, 1).styled.spans.len(), 1);
     }
 
     #[test]
-    fn empty_persona_description_renders_no_em_dash() {
+    fn empty_persona_description_renders_no_separator() {
         use crate::app::bundle::PersonaDetail;
         let mut pane = SubagentCatalogPane::new();
         let mut state = make_state(&["researcher"], &[], &[]);
@@ -498,8 +493,8 @@ mod tests {
         }];
         pane.sync_from_bundle(&state);
 
-        // Empty description should be filtered — single span, no dangling em-dash.
-        assert_eq!(pane.entries[1].styled.spans.len(), 1);
+        // The empty description is filtered out: a single span, no dangling separator
+        assert_eq!(catalog_entry(&pane, 1).styled.spans.len(), 1);
     }
 
     #[test]
@@ -508,11 +503,11 @@ mod tests {
         let state = make_state(&["researcher"], &["reviewer"], &["default"]);
         pane.sync_from_bundle(&state);
 
-        assert_eq!(pane.entries[0].kind, None); // header
-        assert_eq!(pane.entries[1].kind, Some("persona"));
-        assert_eq!(pane.entries[2].kind, None); // header
-        assert_eq!(pane.entries[3].kind, Some("role"));
-        assert_eq!(pane.entries[4].kind, None); // header
-        assert_eq!(pane.entries[5].kind, Some("agent"));
+        assert_eq!(catalog_entry(&pane, 0).kind, None); // header
+        assert_eq!(catalog_entry(&pane, 1).kind, Some("persona"));
+        assert_eq!(catalog_entry(&pane, 2).kind, None); // header
+        assert_eq!(catalog_entry(&pane, 3).kind, Some("role"));
+        assert_eq!(catalog_entry(&pane, 4).kind, None); // header
+        assert_eq!(catalog_entry(&pane, 5).kind, Some("agent"));
     }
 }

@@ -1,5 +1,7 @@
 //! Grok tools library.
 
+#![deny(clippy::indexing_slicing)]
+
 pub use xai_grok_version::VERSION;
 
 /// Default maximum output size (in bytes) for tool results sent to the model.
@@ -22,6 +24,7 @@ pub mod bridge;
 pub mod computer;
 pub mod gitignore;
 pub mod implementations;
+pub mod mcp_elicitation;
 pub mod media_gen_limits;
 pub mod normalization;
 pub mod notification;

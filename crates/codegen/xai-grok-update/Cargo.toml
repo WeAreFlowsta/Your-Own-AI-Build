@@ -5,6 +5,7 @@ version = "0.1.220-alpha.4"
 edition.workspace = true
 
 [dependencies]
+dunce = { workspace = true }
 xai-grok-telemetry = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
