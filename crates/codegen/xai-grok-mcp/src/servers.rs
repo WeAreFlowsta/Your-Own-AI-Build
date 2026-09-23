@@ -1191,39 +1191,7 @@ const STDIO_SHUTDOWN_GRACE: std::time::Duration = std::time::Duration::from_secs
 
 const ANONYMOUS_ACCESS_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
 
-/// Is this MCP server URL on the local machine? Loopback servers skip OAuth
-/// discovery (see the Http arm in `create_client`).
-fn mcp_url_is_loopback(url: &str) -> bool {
-    url::Url::parse(url)
-        .ok()
-        .and_then(|u| u.host().map(|h| match h {
-            url::Host::Ipv4(ip) => ip.is_loopback(),
-            url::Host::Ipv6(ip) => ip.is_loopback(),
-            url::Host::Domain(d) => d.eq_ignore_ascii_case("localhost"),
-        }))
-        .unwrap_or(false)
-}
 
-#[cfg(test)]
-mod loopback_tests {
-    use super::mcp_url_is_loopback;
-
-    #[test]
-    fn loopback_urls_detected() {
-        assert!(mcp_url_is_loopback("http://127.0.0.1:11435/mcp"));
-        assert!(mcp_url_is_loopback("http://localhost:8080/mcp"));
-        assert!(mcp_url_is_loopback("http://[::1]:9000/mcp"));
-        assert!(mcp_url_is_loopback("http://LOCALHOST/mcp"));
-    }
-
-    #[test]
-    fn remote_urls_are_not() {
-        assert!(!mcp_url_is_loopback("https://mcp.linear.app/sse"));
-        assert!(!mcp_url_is_loopback("http://192.168.1.10:8080/mcp"));
-        assert!(!mcp_url_is_loopback("http://127.0.0.1.evil.com/mcp"));
-        assert!(!mcp_url_is_loopback("not a url"));
-    }
-}
 
 /// Per-MCP-server config overrides from `_meta.mcpConfig` in session/new or session/load.
 #[derive(Debug, Clone, Default, serde::Deserialize)]
@@ -4911,19 +4879,6 @@ pub async fn start_mcp_server(
                 // First-party app endpoints addressed by agent id are local
                 // desktop processes that never speak OAuth; probing them
                 // would only add latency.
-                HttpAuthDecision::NoOauthSupport
-            } else if mcp_url_is_loopback(&url) {
-                // A loopback server is the user's own machine - OAuth discovery
-                // is a remote-service dance, and probing a local endpoint can
-                // stall the whole discovery budget (a spec-compliant Streamable
-                // HTTP server answers GET with an endless SSE stream). Skip it:
-                // if a local server ever answers 401, the failure is immediate
-                // and the fix is an Authorization header in its config.
-                tracing::debug!(
-                    server = %name,
-                    %url,
-                    "Skipping OAuth discovery: loopback server (local-first; no remote auth dance)"
-                );
                 HttpAuthDecision::NoOauthSupport
             } else {
                 match ctx.discovery {
