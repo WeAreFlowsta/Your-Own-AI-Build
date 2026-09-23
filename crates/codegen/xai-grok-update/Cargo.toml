@@ -19,6 +19,7 @@ xai-grok-shell = { workspace = true }
 xai-grok-version = { workspace = true }
 
 [dev-dependencies]
+tempfile = { workspace = true }
 semver = { workspace = true }
 serde_json = { workspace = true }
 time = { workspace = true, features = ["serde"] }

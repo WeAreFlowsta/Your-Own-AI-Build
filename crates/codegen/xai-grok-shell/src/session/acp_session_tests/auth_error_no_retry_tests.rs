@@ -391,6 +391,7 @@ async fn mid_salvage_credential_less_401_still_parks() {
                         context_window: Some(1),
                         max_completion_tokens: None,
                         models_etag: None,
+                        prompt_tokens: None,
                     }),
                     ..auth_error_with_credential(xai_grok_sampling_types::SentCredential::Missing)
                 };
