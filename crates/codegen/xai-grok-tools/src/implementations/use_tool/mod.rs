@@ -258,6 +258,60 @@ pub async fn dispatch_mcp_tool(
     .await
 }
 
+/// A bare tool name (`remember_for_project`) qualified by the one server that
+/// has it (`memory__remember_for_project`). Small models call MCP tools by the
+/// name they saw in the listing and leave the server off; when exactly one
+/// server offers that name there is nothing to ask. `None` when the name is
+/// already qualified, is offered by no server, or by more than one.
+pub fn qualify_bare_tool_name(
+    servers: &[crate::types::tool_index::ServerSummary],
+    tool_name: &str,
+) -> Option<String> {
+    if tool_name.contains("__") || tool_name.is_empty() {
+        return None;
+    }
+    let mut owners = servers
+        .iter()
+        .filter(|s| s.tool_names.iter().any(|t| t == tool_name))
+        .map(|s| s.name.as_str());
+    let first = owners.next()?;
+    if owners.next().is_some() {
+        return None;
+    }
+    Some(format!("{first}__{tool_name}"))
+}
+
+/// The qualified name for a bare one, read from the tool index when there is
+/// one; the name itself otherwise.
+async fn qualified_tool_name(
+    resources: Option<&crate::types::resources::SharedResources>,
+    tool_name: &str,
+) -> String {
+    if tool_name.contains("__") {
+        return tool_name.to_string();
+    }
+    let Some(resources) = resources else {
+        return tool_name.to_string();
+    };
+    let servers = {
+        let guard = resources.lock().await;
+        guard
+            .get::<crate::types::tool_index::ToolIndex>()
+            .map(|index| index.0.list_server_summaries())
+    };
+    match servers.as_deref().and_then(|s| qualify_bare_tool_name(s, tool_name)) {
+        Some(qualified) => {
+            tracing::info!(
+                tool_name = %tool_name,
+                qualified = %qualified,
+                "use_tool: bare tool name qualified by its only server"
+            );
+            qualified
+        }
+        None => tool_name.to_string(),
+    }
+}
+
 /// Check MCP routing eligibility without dispatching or probing a remote tool.
 ///
 /// # Errors
@@ -409,10 +463,10 @@ impl xai_tool_runtime::Tool for UseTool {
             ));
         };
         let resources = crate::types::tool_metadata::shared_resources(&ctx).ok();
-        validate_mcp_target(resources.as_ref(), &input.tool_name).await?;
+        let tool_name = qualified_tool_name(resources.as_ref(), &input.tool_name).await;
+        validate_mcp_target(resources.as_ref(), &tool_name).await?;
 
-        let output =
-            dispatch_mcp_tool(&ctx, &input.tool_name, input.tool_input, "use_tool").await?;
+        let output = dispatch_mcp_tool(&ctx, &tool_name, input.tool_input, "use_tool").await?;
 
         let trunc_ctx = McpTruncateContext::from_tool_ctx(&ctx, "use_tool").await;
         Ok(truncate_tool_output(output, &trunc_ctx).await)

@@ -886,3 +886,28 @@ async fn native_and_unknown_names_never_dispatch() {
         assert!(captured.lock().unwrap().is_none());
     }
 }
+
+#[test]
+fn a_bare_tool_name_is_qualified_by_its_only_server() {
+    use crate::types::tool_index::ServerSummary;
+    let server = |name: &str, tools: &[&str]| ServerSummary {
+        name: name.into(),
+        description: None,
+        tool_count: tools.len(),
+        tool_names: tools.iter().map(|t| t.to_string()).collect(),
+    };
+    let servers = vec![
+        server("memory", &["remember_for_project", "read_project_memory"]),
+        server("web", &["read_page", "search"]),
+        server("notes", &["search"]),
+    ];
+    assert_eq!(
+        super::qualify_bare_tool_name(&servers, "remember_for_project").as_deref(),
+        Some("memory__remember_for_project")
+    );
+    assert_eq!(super::qualify_bare_tool_name(&servers, "search"), None, "two servers have it");
+    assert_eq!(super::qualify_bare_tool_name(&servers, "nothing"), None, "no server has it");
+    assert_eq!(super::qualify_bare_tool_name(&servers, "memory__remember_for_project"), None, "already qualified");
+    assert_eq!(super::qualify_bare_tool_name(&[], "remember_for_project"), None);
+}
+
