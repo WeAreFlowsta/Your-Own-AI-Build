@@ -70,6 +70,117 @@ jobs:
           RUSTFLAGS: "-C force-unwind-tables=yes -C target-feature=+crt-static -C link-arg=/DEBUG:NONE"
         run: cargo build --release -p xai-grok-pager-bin --target ${{ matrix.target }}
 
+      # --- Signing ---------------------------------------------------------
+      # The apps that install this program download it and start it
+      # themselves, so the Windows and macOS builds are signed: Authenticode
+      # on Windows, Developer ID with notarization on macOS. Each platform
+      # signs when its secrets are present and says so in the run's summary;
+      # the "Signed builds" job below refuses a release tag whose Windows or
+      # macOS build is not signed (a tag with a "-" is a pre-release and may
+      # be unsigned).
+      - name: Signing secrets present?
+        id: signing
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          ESIGNER_USERNAME: ${{ secrets.ESIGNER_USERNAME }}
+        run: |
+          echo "apple=$([ -n "$APPLE_CERTIFICATE" ] && echo 1 || echo 0)" >> "$GITHUB_OUTPUT"
+          echo "windows=$([ -n "$ESIGNER_USERNAME" ] && echo 1 || echo 0)" >> "$GITHUB_OUTPUT"
+
+      - name: Sign and notarize (macOS)
+        if: runner.os == 'macOS' && steps.signing.outputs.apple == '1'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_PATH: ${{ secrets.APPLE_API_KEY_PATH }}
+        run: |
+          set -euo pipefail
+          BIN="target/${{ matrix.target }}/release/your-own-ai-build"
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
+          echo -n "$APPLE_CERTIFICATE" | base64 --decode -o "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/certificate.p12" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychain -d user -s "$KEYCHAIN"
+          rm -f "$RUNNER_TEMP/certificate.p12"
+          codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$BIN"
+          codesign --verify --strict --verbose=2 "$BIN"
+          # A bare program cannot carry a stapled ticket; notarization is
+          # still recorded with Apple for this exact file.
+          mkdir -p "$RUNNER_TEMP/private_keys"
+          echo -n "$APPLE_API_KEY_PATH" | base64 --decode -o "$RUNNER_TEMP/private_keys/AuthKey_${APPLE_API_KEY}.p8"
+          ditto -c -k --keepParent "$BIN" "$RUNNER_TEMP/notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" --wait \
+            --key "$RUNNER_TEMP/private_keys/AuthKey_${APPLE_API_KEY}.p8" \
+            --key-id "$APPLE_API_KEY" --issuer "$APPLE_API_ISSUER" | tee "$RUNNER_TEMP/notary.log"
+          rm -rf "$RUNNER_TEMP/private_keys"
+          grep -q "status: Accepted" "$RUNNER_TEMP/notary.log"
+          echo "signed" > "$RUNNER_TEMP/signed-${{ matrix.label }}"
+
+      # Signed with the hardened runtime: check the program still starts.
+      - name: The signed program starts (macOS, this machine's architecture)
+        if: runner.os == 'macOS' && steps.signing.outputs.apple == '1' && matrix.target == 'aarch64-apple-darwin'
+        run: target/${{ matrix.target }}/release/your-own-ai-build --version
+
+      - name: Setup Java (Windows signing)
+        if: runner.os == 'Windows' && steps.signing.outputs.windows == '1' && !contains(github.ref_name, '-')
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # Pre-release tags are not signed on Windows (the signing service
+      # bills per signature).
+      - name: Sign (Windows)
+        if: runner.os == 'Windows' && steps.signing.outputs.windows == '1' && !contains(github.ref_name, '-')
+        shell: pwsh
+        env:
+          ESIGNER_USERNAME: ${{ secrets.ESIGNER_USERNAME }}
+          ESIGNER_PASSWORD: ${{ secrets.ESIGNER_PASSWORD }}
+          ESIGNER_CREDENTIAL_ID: ${{ secrets.ESIGNER_CREDENTIAL_ID }}
+          ESIGNER_TOTP_SECRET: ${{ secrets.ESIGNER_TOTP_SECRET }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $url = "https://github.com/SSLcom/CodeSignTool/releases/download/v1.3.2/CodeSignTool-v1.3.2.zip"
+          $zip = Join-Path $env:RUNNER_TEMP "CodeSignTool.zip"
+          $tool = Join-Path $env:RUNNER_TEMP "CodeSignTool"
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          # The tool is handed the signing secrets: only the pinned zip runs.
+          $got = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          if ($got -ne "f14b1e1ef14bfa1fd00279c363aab0debbf5dcfba0e4bcdce5d22bb771de0e3a") { throw "CodeSignTool v1.3.2: SHA-256 $got is not the pinned one" }
+          Expand-Archive -Path $zip -DestinationPath $tool -Force
+          $jar = Get-ChildItem -Path (Join-Path $tool "jar") -Filter "code_sign_tool-*.jar" | Select-Object -First 1
+          if (-not $jar) { throw "CodeSignTool jar not found" }
+          $exe = (Resolve-Path "target/${{ matrix.target }}/release/your-own-ai-build.exe").Path
+          # The tool reads its conf/ folder from the current directory.
+          Push-Location $tool
+          try {
+            $output = & java -jar $jar.FullName sign "-username=$env:ESIGNER_USERNAME" "-password=$env:ESIGNER_PASSWORD" "-credential_id=$env:ESIGNER_CREDENTIAL_ID" "-totp_secret=$env:ESIGNER_TOTP_SECRET" "-input_file_path=$exe" -override 2>&1 | Out-String
+            $code = $LASTEXITCODE
+          } finally { Pop-Location }
+          Write-Host $output
+          # The tool can print "Error: ..." and still exit zero.
+          if ($code -ne 0 -or $output -match '(?m)^Error:') { throw "signing failed (exit $code)" }
+          $sig = Get-AuthenticodeSignature -LiteralPath $exe
+          if ($sig.Status -ne "Valid") { throw "the signature does not verify: $($sig.Status)" }
+          & $exe --version
+          if ($LASTEXITCODE -ne 0) { throw "the signed program did not start" }
+          "signed" | Out-File -FilePath (Join-Path $env:RUNNER_TEMP "signed-${{ matrix.label }}") -Encoding ascii
+
+      - name: Say whether this build is signed
+        shell: bash
+        run: |
+          if [ -f "$RUNNER_TEMP/signed-${{ matrix.label }}" ]; then state=signed; else state=unsigned; fi
+          echo "${{ matrix.label }}: $state" | tee -a "$GITHUB_STEP_SUMMARY"
+          mkdir -p dist && echo "$state" > "dist/signing-${{ matrix.label }}.txt"
+
       - name: Package (unix)
         if: runner.os != 'Windows'
         run: |
@@ -97,6 +208,7 @@ jobs:
           path: |
             dist/*.tar.gz
             dist/*.zip
+            dist/signing-*.txt
           if-no-files-found: error
 
   release:
@@ -109,9 +221,25 @@ jobs:
           path: dist
           merge-multiple: true
 
+      # A release tag ships signed Windows and macOS builds or does not
+      # ship. A pre-release tag (with a "-") may be unsigned.
+      - name: Signed builds
+        run: |
+          cat dist/signing-*.txt 2>/dev/null || true
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then echo "pre-release tag: unsigned builds allowed"; exit 0; fi
+          bad=0
+          for label in macos-arm64 macos-x86_64 windows-x86_64; do
+            f="dist/signing-$label.txt"
+            # The Windows build is best-effort: absent is not unsigned.
+            if [ -f "$f" ] && [ "$(cat "$f")" != signed ]; then echo "::error::$label is not signed"; bad=1; fi
+          done
+          exit $bad
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           draft: true
-          files: dist/*
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
           generate_release_notes: true
